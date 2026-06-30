@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Mail, Lock, Eye, EyeOff, ShieldCheck, Zap, ArrowRight, Phone } from 'lucide-react';
+import { User, Mail, Lock, Eye, EyeOff, Phone, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 const Signup: React.FC = () => {
   const navigate = useNavigate();
@@ -9,106 +10,116 @@ const Signup: React.FC = () => {
   const [show, setShow] = useState(false);
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({ first: '', last: '', email: '', pwd: '', telephone: '', accept: false });
+  const [form, setForm] = useState({ first: '', last: '', email: '', phone: '', password: '', confirm: '' });
+
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm(prev => ({ ...prev, [k]: e.target.value }));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr('');
-    if (!form.accept) { setErr('Veuillez accepter les conditions.'); return; }
-    if (!form.telephone) { setErr('Le numéro de téléphone est obligatoire.'); return; }
-    
+    if (form.password !== form.confirm) { setErr("Les mots de passe ne correspondent pas."); return; }
+    if (form.password.length < 6) { setErr("Le mot de passe doit contenir au moins 6 caractères."); return; }
     setLoading(true);
-    const name = `${form.first} ${form.last}`.trim();
-    const res = await signUp(form.email, form.pwd, name, form.telephone, 'PATIENT');
-    setLoading(false);
-    
-    if (res.error) { setErr(res.error); return; }
-    navigate('/patient');
+    try {
+      const res = await signUp(form.email, form.password, `${form.first} ${form.last}`, form.phone, 'PATIENT');
+      if (res.error) { setErr(res.error); setLoading(false); return; }
+      toast.success("Compte créé avec succès !");
+      navigate('/patient');
+    } catch {
+      setErr("Une erreur inattendue est survenue.");
+      setLoading(false);
+    }
   };
-  
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="flex items-center justify-between px-6 sm:px-10 h-20">
-        <span className="text-2xl font-extrabold text-orange-500 flex items-center gap-2">Medic_RDV</span>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-600">Déjà inscrit ?</span>
-          <Link to="/login" className="px-5 py-2.5 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors">Se connecter</Link>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-blue-50 flex flex-col">
+      <header className="flex items-center justify-between px-6 sm:px-10 h-16 bg-white/80 backdrop-blur border-b border-gray-100">
+        <Link to="/" className="flex items-center gap-2">
+          <div className="w-9 h-9 rounded-lg overflow-hidden bg-orange-500">
+            <img src="/odc-logo.png" alt="ODC" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
+          </div>
+          <div>
+            <span className="font-black text-gray-900">Med<span className="text-orange-500">Connect</span></span>
+            <span className="block text-[9px] font-bold text-orange-400 uppercase tracking-widest -mt-0.5">ODC Guinée</span>
+          </div>
+        </Link>
       </header>
 
-      <div className="flex-1 grid lg:grid-cols-2 gap-10 max-w-7xl mx-auto w-full px-6 sm:px-10 py-8 items-center">
-        {/* Left */}
-        <div>
-          <span className="inline-block px-4 py-1.5 rounded-full bg-orange-100 text-orange-600 text-sm font-semibold">Espace Patient</span>
-          <h1 className="mt-6 text-4xl sm:text-5xl font-extrabold text-gray-900 leading-tight">Prenez soin de votre santé, simplement.</h1>
-          <p className="mt-5 text-gray-500 max-w-md">La plateforme moderne qui vous connecte aux meilleurs professionnels de santé. Prenez rendez-vous en quelques clics.</p>
-          <div className="mt-8 grid sm:grid-cols-2 gap-4">
-            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-              <ShieldCheck className="w-6 h-6 text-orange-500 mb-3" />
-              <p className="font-bold text-gray-900">Sécurité Maximale</p>
-              <p className="text-sm text-gray-500">Vos données de santé sont protégées.</p>
+      <div className="flex-1 flex items-center justify-center px-4 py-10">
+        <div className="w-full max-w-md">
+          <div className="bg-white rounded-3xl shadow-2xl shadow-gray-200/80 p-8 sm:p-10 border border-gray-100">
+            <div className="flex justify-center mb-5">
+              <div className="flex items-center gap-2 bg-orange-50 border border-orange-100 rounded-2xl px-4 py-2">
+                <div className="w-7 h-7 rounded-lg overflow-hidden bg-orange-500">
+                  <img src="/odc-logo.png" alt="ODC" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
+                </div>
+                <span className="text-xs font-black text-orange-600">ODC-GUINÉE</span>
+              </div>
             </div>
-            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-              <Zap className="w-6 h-6 text-blue-600 mb-3" />
-              <p className="font-bold text-gray-900">Rapidité</p>
-              <p className="text-sm text-gray-500">Confirmation immédiate de vos RDV.</p>
-            </div>
+
+            <h1 className="text-2xl font-extrabold text-center text-gray-900">Créer un compte</h1>
+            <p className="text-center text-gray-500 text-sm mt-1 mb-7">Inscription gratuite en tant que Patient</p>
+
+            <form onSubmit={submit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 mb-1 block">Prénom *</label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input value={form.first} onChange={set('first')} required placeholder="Mamadou" className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-orange-400 text-sm" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 mb-1 block">Nom *</label>
+                  <input value={form.last} onChange={set('last')} required placeholder="Barry" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-orange-400 text-sm" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1 block">Email *</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input type="email" value={form.email} onChange={set('email')} required placeholder="email@exemple.com" className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-orange-400 text-sm" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1 block">Téléphone *</label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input value={form.phone} onChange={set('phone')} required placeholder="+224 620 000 000" className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-orange-400 text-sm" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1 block">Mot de passe *</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input type={show ? 'text' : 'password'} value={form.password} onChange={set('password')} required placeholder="••••••••" className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-orange-400 text-sm" />
+                  <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1 block">Confirmer le mot de passe *</label>
+                <input type="password" value={form.confirm} onChange={set('confirm')} required placeholder="••••••••" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-orange-400 text-sm" />
+              </div>
+
+              {err && <p className="text-sm text-red-600 bg-red-50 rounded-xl py-2 text-center">{err}</p>}
+
+              <button type="submit" disabled={loading}
+                className="w-full py-3 rounded-xl bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white font-bold transition-colors flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20">
+                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                {loading ? 'Création en cours...' : 'Créer mon compte'}
+              </button>
+            </form>
+
+            <p className="text-center text-sm text-gray-500 mt-5">
+              Déjà inscrit ? <Link to="/login" className="font-bold text-orange-500 hover:underline">Se connecter</Link>
+            </p>
           </div>
         </div>
-
-        {/* Right form */}
-        <div className="bg-white rounded-3xl shadow-xl p-8 sm:p-10">
-          <h2 className="text-3xl font-extrabold text-gray-900">Créer un compte</h2>
-          <p className="text-gray-500 mt-2">Inscrivez-vous pour accéder à votre espace santé.</p>
-
-          <form onSubmit={submit} className="mt-8 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-semibold text-gray-700">Prénom</label>
-                <input value={form.first} onChange={(e) => setForm({ ...form, first: e.target.value })} placeholder="Ex: Lucas" required className="mt-1 w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-orange-500" />
-              </div>
-              <div>
-                <label className="text-sm font-semibold text-gray-700">Nom</label>
-                <input value={form.last} onChange={(e) => setForm({ ...form, last: e.target.value })} placeholder="Ex: Martin" required className="mt-1 w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-orange-500" />
-              </div>
-            </div>
-            <div>
-              <label className="text-sm font-semibold text-gray-700">Adresse E-mail</label>
-              <div className="mt-1 flex items-center gap-2 px-4 py-3 rounded-xl border border-gray-200 focus-within:ring-2 focus-within:ring-orange-500">
-                <Mail className="w-4 h-4 text-gray-400" />
-                <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} type="email" required placeholder="nom@exemple.com" className="flex-1 outline-none" />
-              </div>
-            </div>
-            <div>
-              <label className="text-sm font-semibold text-gray-700">Numéro de téléphone</label>
-              <div className="mt-1 flex items-center gap-2 px-4 py-3 rounded-xl border border-gray-200 focus-within:ring-2 focus-within:ring-orange-500">
-                <Phone className="w-4 h-4 text-gray-400" />
-                <input value={form.telephone} onChange={(e) => setForm({ ...form, telephone: e.target.value })} type="tel" required placeholder="06 XX XX XX XX" className="flex-1 outline-none" />
-              </div>
-            </div>
-            <div>
-              <label className="text-sm font-semibold text-gray-700">Mot de passe</label>
-              <div className="mt-1 flex items-center gap-2 px-4 py-3 rounded-xl border border-gray-200 focus-within:ring-2 focus-within:ring-orange-500">
-                <Lock className="w-4 h-4 text-gray-400" />
-                <input value={form.pwd} onChange={(e) => setForm({ ...form, pwd: e.target.value })} type={show ? 'text' : 'password'} required placeholder="••••••••" className="flex-1 outline-none" />
-                <button type="button" onClick={() => setShow(!show)} className="text-gray-400">{show ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}</button>
-              </div>
-            </div>
-            <label className="flex items-start gap-2 text-sm text-gray-600">
-              <input type="checkbox" checked={form.accept} onChange={(e) => setForm({ ...form, accept: e.target.checked })} className="mt-1" />
-              <span>J'accepte les <span className="text-orange-600 font-semibold">Conditions Générales</span>.</span>
-            </label>
-            {err && <p className="text-sm text-red-600">{err}</p>}
-            <button type="submit" disabled={loading} className="w-full py-3.5 rounded-xl bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white font-semibold text-lg flex items-center justify-center gap-2 transition-colors">
-              {loading ? 'Inscription...' : <>S'inscrire <ArrowRight className="w-5 h-5" /></>}
-            </button>
-          </form>
-        </div>
       </div>
-
-      <footer className="px-10 py-6 text-xs text-gray-400 text-center">
-        <span>© 2024 Medic_RDV. Tous droits réservés.</span>
-      </footer>
     </div>
   );
 };

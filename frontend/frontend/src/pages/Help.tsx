@@ -1,50 +1,61 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import PublicHeader from '@/components/medic/PublicHeader';
 import Footer from '@/components/medic/Footer';
-import { HelpCircle, Book, MessageSquare, Phone } from 'lucide-react';
+import { HelpCircle, Mail, Phone, BookOpen } from 'lucide-react';
 
-const Help: React.FC = () => {
-  const categories = [
-    { icon: HelpCircle, title: 'Questions Fréquentes', desc: 'Trouvez des réponses rapides aux questions les plus courantes.' },
-    { icon: Book, title: 'Guides Utilisateur', desc: 'Apprenez à utiliser toutes les fonctionnalités de la plateforme.' },
-    { icon: MessageSquare, title: 'Support Chat', desc: 'Discutez en direct avec l\'un de nos conseillers.' },
-    { icon: Phone, title: 'Contact Téléphonique', desc: 'Appelez-nous pour une assistance personnalisée.' },
-  ];
+const FAQS = [
+  { q: "Comment prendre un rendez-vous ?", a: "Connectez-vous, accédez à 'Trouver un médecin', choisissez un praticien, sélectionnez un créneau disponible et confirmez votre réservation." },
+  { q: "Comment les médecins sont-ils créés ?", a: "Les comptes médecins sont exclusivement créés par l'administrateur système, avec affectation d'une spécialité." },
+  { q: "Comment annuler un rendez-vous ?", a: "Dans votre tableau de bord, accédez à 'Mes rendez-vous' et cliquez sur l'icône d'annulation à côté du rendez-vous souhaité." },
+  { q: "Mes données sont-elles sécurisées ?", a: "Oui. MedConnect utilise JWT stateless, BCrypt pour les mots de passe et Spring Security 6. Toutes les communications se font via HTTPS." },
+  { q: "Comment réinitialiser mon mot de passe ?", a: "Sur la page de connexion, cliquez sur 'Oublié ?' et saisissez votre email. Vous recevrez un lien de réinitialisation." },
+];
 
-  return (
-    <div className="bg-gray-50 min-h-screen">
-      <PublicHeader />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="text-center mb-16">
-          <h1 className="text-4xl font-extrabold text-gray-900 mb-4">Comment pouvons-nous vous aider ?</h1>
-          <p className="text-xl text-gray-500 max-w-2xl mx-auto">Notre équipe est là pour vous accompagner dans la gestion de votre santé et de vos rendez-vous.</p>
+const Help: React.FC = () => (
+  <div className="min-h-screen flex flex-col bg-gray-50">
+    <PublicHeader />
+    <div className="flex-1 max-w-4xl mx-auto px-4 py-16 w-full">
+      <div className="text-center mb-12">
+        <div className="w-16 h-16 rounded-2xl bg-orange-100 flex items-center justify-center mx-auto mb-4">
+          <HelpCircle className="w-8 h-8 text-orange-500" />
         </div>
+        <h1 className="text-3xl font-extrabold text-gray-900">Centre d'Aide</h1>
+        <p className="text-gray-500 mt-2">Tout ce que vous devez savoir sur MedConnect ODC</p>
+      </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 mb-16">
-          {categories.map((cat, i) => (
-            <div key={i} className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow text-center">
-              <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-500 mx-auto mb-6">
-                <cat.icon className="w-7 h-7" />
+      <div className="space-y-4 mb-12">
+        {FAQS.map((faq, i) => (
+          <div key={i} className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+            <div className="flex items-start gap-3">
+              <BookOpen className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-bold text-gray-900 mb-1">{faq.q}</h3>
+                <p className="text-gray-500 text-sm leading-relaxed">{faq.a}</p>
               </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2">{cat.title}</h3>
-              <p className="text-sm text-gray-500">{cat.desc}</p>
             </div>
-          ))}
-        </div>
-
-        <div className="bg-blue-600 rounded-3xl p-10 text-white flex flex-col md:flex-row items-center justify-between gap-8">
-          <div>
-            <h2 className="text-2xl font-bold mb-2">Vous ne trouvez pas ce que vous cherchez ?</h2>
-            <p className="text-blue-100">Notre équipe de support est disponible 24h/24 et 7j/7 pour répondre à vos questions.</p>
           </div>
-          <button className="px-8 py-4 bg-white text-blue-600 font-bold rounded-2xl hover:bg-blue-50 transition-colors whitespace-nowrap">
-            Contacter le support
-          </button>
+        ))}
+      </div>
+
+      <div className="bg-orange-500 rounded-3xl p-8 text-white text-center">
+        <div className="w-12 h-12 rounded-xl overflow-hidden bg-white/20 mx-auto mb-4">
+          <img src="/odc-logo.png" alt="ODC" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
         </div>
-      </main>
-      <Footer />
+        <h2 className="text-xl font-bold mb-2">Besoin d'aide supplémentaire ?</h2>
+        <p className="text-orange-100 mb-6">L'équipe ODC-Guinée est disponible pour vous accompagner.</p>
+        <div className="flex justify-center gap-4 flex-wrap">
+          <a href="mailto:support@odc-guinee.com" className="flex items-center gap-2 bg-white text-orange-600 font-bold px-5 py-2.5 rounded-xl hover:bg-orange-50 transition-colors">
+            <Mail className="w-4 h-4" /> Email
+          </a>
+          <a href="tel:+224000000000" className="flex items-center gap-2 bg-white/20 border border-white/30 text-white font-bold px-5 py-2.5 rounded-xl hover:bg-white/30 transition-colors">
+            <Phone className="w-4 h-4" /> Appeler
+          </a>
+        </div>
+      </div>
     </div>
-  );
-};
+    <Footer />
+  </div>
+);
 
 export default Help;

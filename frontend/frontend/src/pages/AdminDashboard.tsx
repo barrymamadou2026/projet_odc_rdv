@@ -1,31 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { Users, CalendarCheck, AlertTriangle, Plus, Shield, ShieldOff, Trash2, X } from 'lucide-react';
+import { Users, CalendarCheck, AlertTriangle, Plus, Shield, ShieldOff, X, Loader2, LayoutGrid, List } from 'lucide-react';
 import DashboardShell from '@/components/medic/DashboardShell';
 import DashboardTopbar from '@/components/medic/DashboardTopbar';
 import { adminApi } from '@/lib/api';
 import { toast } from 'sonner';
 
-interface UserData {
-  idUtilisateur: number;
-  nom: string;
-  prenom: string;
-  email: string;
-  role: string;
-  estActif: boolean;
-}
+interface UserData { idUtilisateur: number; nom: string; prenom: string; email: string; role: string; estActif: boolean; }
+interface AppointmentData { idRendezVous: number; patientNom: string; medecinNom: string; dateHeure: string; statut: string; }
+interface Specialite { idSpecialite: number; nom: string; }
 
-interface AppointmentData {
-  idRendezVous: number;
-  patientNom: string;
-  medecinNom: string;
-  dateHeure: string;
-  statut: string;
-}
-
-interface Specialite {
-  idSpecialite: number;
-  nom: string;
-}
+const STATUT_STYLES: Record<string, string> = {
+  ATTENTE: 'bg-orange-100 text-orange-700',
+  EN_ATTENTE: 'bg-orange-100 text-orange-700',
+  CONFIRME: 'bg-green-100 text-green-700',
+  ANNULE: 'bg-red-100 text-red-700',
+};
 
 const AdminDashboard: React.FC = () => {
   const [users, setUsers] = useState<UserData[]>([]);
@@ -33,172 +22,205 @@ const AdminDashboard: React.FC = () => {
   const [specialites, setSpecialites] = useState<Specialite[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [stats, setStats] = useState({
-    totalUsers: 0,
-    totalAppointments: 0,
-    activeUsers: 0,
-    pendingAppointments: 0
-  });
-
-  // Formulaire médecin
-  const [form, setForm] = useState({
-    nom: '',
-    prenom: '',
-    email: '',
-    password: '',
-    idSpecialite: '',
-    telephone: '',
-    adresse: ''
-  });
+  const [activeTab, setActiveTab] = useState<'users' | 'appointments'>('users');
+  const [form, setForm] = useState({ nom: '', prenom: '', email: '', password: '', idSpecialite: '', telephone: '', adresse: '' });
+  const [creating, setCreating] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [usersData, apptsData, specsData] = await Promise.all([
-        adminApi.getUsers(),
-        adminApi.getAllAppointments(),
-        adminApi.getSpecialites()
-      ]);
-      
-      setUsers(usersData as UserData[]);
-      setAppointments(apptsData as AppointmentData[]);
-      setSpecialites(specsData as Specialite[]);
-      
-      setStats({
-        totalUsers: (usersData as UserData[]).length,
-        totalAppointments: (apptsData as AppointmentData[]).length,
-        activeUsers: (usersData as UserData[]).filter(u => u.estActif).length,
-        pendingAppointments: (apptsData as AppointmentData[]).filter(a => a.statut === 'EN_ATTENTE').length
-      });
-    } catch (error) {
-      toast.error("Erreur lors de la récupération des données");
-    } finally {
-      setLoading(false);
-    }
+      const [u, a, s] = await Promise.all([adminApi.getUsers(), adminApi.getAllAppointments(), adminApi.getSpecialites()]);
+      setUsers(u as UserData[]);
+      setAppointments(a as AppointmentData[]);
+      setSpecialites(s as Specialite[]);
+    } catch { toast.error("Erreur lors du chargement des données"); }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
-  const toggleUserStatus = async (user: UserData) => {
+  const toggleUserStatus = async (u: UserData) => {
     try {
-      if (user.estActif) {
-        await adminApi.deactivateUser(user.idUtilisateur);
-        toast.success(`Utilisateur désactivé`);
-      } else {
-        await adminApi.activateUser(user.idUtilisateur);
-        toast.success(`Utilisateur activé`);
-      }
-      fetchData();
-    } catch (error) {
-      toast.error("Erreur de modification");
-    }
+      if (u.estActif) await adminApi.deactivateUser(u.idUtilisateur);
+      else await adminApi.activateUser(u.idUtilisateur);
+      toast.success(`Utilisateur ${u.estActif ? 'désactivé' : 'activé'}`);
+      setUsers(prev => prev.map(x => x.idUtilisateur === u.idUtilisateur ? { ...x, estActif: !u.estActif } : x));
+    } catch (e: any) { toast.error(e.message || "Erreur"); }
   };
 
   const handleCreateMedecin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.idSpecialite) { toast.error("Sélectionnez une spécialité"); return; }
+    setCreating(true);
     try {
-      await adminApi.createDoctor({
-        ...form,
-        idSpecialite: parseInt(form.idSpecialite)
-      });
-      toast.success("Médecin créé avec succès");
+      await adminApi.createDoctor({ ...form, idSpecialite: Number(form.idSpecialite) });
+      toast.success("Médecin créé avec succès !");
       setShowModal(false);
       setForm({ nom: '', prenom: '', email: '', password: '', idSpecialite: '', telephone: '', adresse: '' });
       fetchData();
-    } catch (error: any) {
-      toast.error(error.message || "Erreur lors de la création");
-    }
+    } catch (e: any) { toast.error(e.message || "Erreur lors de la création"); }
+    finally { setCreating(false); }
   };
 
-  const STATS_CARDS = [
-    { icon: Users, label: 'Utilisateurs', value: stats.totalUsers.toString(), color: 'bg-blue-50', iconColor: 'text-blue-500' },
-    { icon: CalendarCheck, label: 'Rendez-vous', value: stats.totalAppointments.toString(), color: 'bg-green-50', iconColor: 'text-green-500' },
-    { icon: Shield, label: 'Actifs', value: stats.activeUsers.toString(), color: 'bg-purple-50', iconColor: 'text-purple-500' },
-    { icon: AlertTriangle, label: 'En Attente', value: stats.pendingAppointments.toString(), color: 'bg-orange-50', iconColor: 'text-orange-500' },
+  const stats = [
+    { icon: Users,         label: 'Utilisateurs',  value: users.length,                                                             color: 'bg-blue-50',   iconColor: 'text-blue-500' },
+    { icon: CalendarCheck, label: 'Rendez-vous',    value: appointments.length,                                                      color: 'bg-green-50',  iconColor: 'text-green-500' },
+    { icon: Shield,        label: 'Actifs',         value: users.filter(u => u.estActif).length,                                     color: 'bg-purple-50', iconColor: 'text-purple-500' },
+    { icon: AlertTriangle, label: 'En Attente',     value: appointments.filter(a => ['ATTENTE','EN_ATTENTE'].includes(a.statut)).length, color: 'bg-orange-50', iconColor: 'text-orange-500' },
   ];
 
   return (
     <DashboardShell active="Dashboard">
-      <DashboardTopbar title="Tableau de Bord Admin" showSearch={false} rightLabel="Admin Console" />
+      <DashboardTopbar title="Tableau de Bord Admin" rightLabel="Admin Console" />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {STATS_CARDS.map((s) => (
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {stats.map(s => (
           <div key={s.label} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.color} mb-4`}>
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.color} mb-3`}>
               <s.icon className={`w-5 h-5 ${s.iconColor}`} />
             </div>
-            <p className="text-sm text-gray-500">{s.label}</p>
-            <p className="text-2xl font-bold text-gray-900">{s.value}</p>
+            <p className="text-xs text-gray-400 font-semibold">{s.label}</p>
+            <p className="text-2xl font-black text-gray-900">{loading ? '—' : s.value}</p>
           </div>
         ))}
       </div>
 
+      {/* Tabs */}
       <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold text-gray-900">Utilisateurs</h3>
-          <button onClick={() => setShowModal(true)} className="px-4 py-2 rounded-xl bg-orange-500 text-white font-semibold flex items-center gap-2 hover:bg-orange-600 transition-colors">
-            <Plus className="w-4 h-4" /> Ajouter Médecin
-          </button>
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+          <div className="flex gap-2 bg-gray-100 rounded-xl p-1">
+            <button onClick={() => setActiveTab('users')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'users' ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}>
+              <LayoutGrid className="w-4 h-4" /> Utilisateurs
+            </button>
+            <button onClick={() => setActiveTab('appointments')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'appointments' ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}>
+              <List className="w-4 h-4" /> Rendez-vous
+            </button>
+          </div>
+          {activeTab === 'users' && (
+            <button onClick={() => setShowModal(true)} className="px-4 py-2 rounded-xl bg-orange-500 text-white font-bold flex items-center gap-2 hover:bg-orange-600 transition-colors shadow-sm">
+              <Plus className="w-4 h-4" /> Ajouter Médecin
+            </button>
+          )}
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="text-xs text-gray-400 uppercase border-b">
-              <tr>
-                <th className="py-3">Nom</th>
-                <th className="py-3">Rôle</th>
-                <th className="py-3">Statut</th>
-                <th className="py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.idUtilisateur} className="border-b hover:bg-gray-50">
-                  <td className="py-4">
-                    <p className="font-semibold">{u.prenom} {u.nom}</p>
-                    <p className="text-xs text-gray-400">{u.email}</p>
-                  </td>
-                  <td><span className="text-xs font-bold px-2 py-1 rounded bg-gray-100">{u.role}</span></td>
-                  <td>
-                    <span className={`text-xs font-bold flex items-center gap-1 ${u.estActif ? 'text-green-600' : 'text-red-500'}`}>
-                      <span className={`w-2 h-2 rounded-full ${u.estActif ? 'bg-green-500' : 'bg-red-500'}`} />
-                      {u.estActif ? 'Actif' : 'Inactif'}
-                    </span>
-                  </td>
-                  <td className="text-right">
-                    <button onClick={() => toggleUserStatus(u)} className="p-2 text-gray-400 hover:text-orange-500">
-                      {u.estActif ? <ShieldOff className="w-5 h-5" /> : <Shield className="w-5 h-5" />}
-                    </button>
-                  </td>
+        {loading ? (
+          <div className="flex justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-orange-400" /></div>
+        ) : activeTab === 'users' ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="text-xs text-gray-400 uppercase border-b border-gray-100">
+                <tr>
+                  <th className="py-3 pr-4">Utilisateur</th>
+                  <th className="py-3 pr-4">Rôle</th>
+                  <th className="py-3 pr-4">Statut</th>
+                  <th className="py-3 text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {users.length === 0 ? (
+                  <tr><td colSpan={4} className="py-12 text-center text-gray-400">Aucun utilisateur</td></tr>
+                ) : users.map(u => (
+                  <tr key={u.idUtilisateur} className="hover:bg-gray-50">
+                    <td className="py-3 pr-4">
+                      <p className="font-semibold text-gray-900">{u.prenom} {u.nom}</p>
+                      <p className="text-xs text-gray-400">{u.email}</p>
+                    </td>
+                    <td className="pr-4"><span className={`text-xs font-bold px-2 py-1 rounded-lg ${u.role === 'MEDECIN' ? 'bg-blue-100 text-blue-700' : u.role === 'ADMIN' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>{u.role}</span></td>
+                    <td className="pr-4">
+                      <span className={`inline-flex items-center gap-1.5 text-xs font-bold ${u.estActif ? 'text-green-600' : 'text-red-500'}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${u.estActif ? 'bg-green-500' : 'bg-red-500'}`} />
+                        {u.estActif ? 'Actif' : 'Inactif'}
+                      </span>
+                    </td>
+                    <td className="text-right">
+                      <button onClick={() => toggleUserStatus(u)} title={u.estActif ? 'Désactiver' : 'Activer'} className={`p-2 rounded-lg transition-colors ${u.estActif ? 'text-gray-400 hover:text-red-500 hover:bg-red-50' : 'text-gray-400 hover:text-green-600 hover:bg-green-50'}`}>
+                        {u.estActif ? <ShieldOff className="w-4 h-4" /> : <Shield className="w-4 h-4" />}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="text-xs text-gray-400 uppercase border-b border-gray-100">
+                <tr>
+                  <th className="py-3 pr-4">Patient</th>
+                  <th className="py-3 pr-4">Médecin</th>
+                  <th className="py-3 pr-4">Date</th>
+                  <th className="py-3">Statut</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {appointments.length === 0 ? (
+                  <tr><td colSpan={4} className="py-12 text-center text-gray-400">Aucun rendez-vous</td></tr>
+                ) : appointments.map(a => (
+                  <tr key={a.idRendezVous} className="hover:bg-gray-50">
+                    <td className="py-3 pr-4 font-medium text-gray-900">{a.patientNom}</td>
+                    <td className="pr-4 text-gray-600">Dr. {a.medecinNom}</td>
+                    <td className="pr-4 text-gray-500 text-xs">{a.dateHeure ? new Date(a.dateHeure).toLocaleString('fr-FR', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '–'}</td>
+                    <td><span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${STATUT_STYLES[a.statut] || 'bg-gray-100 text-gray-500'}`}>{a.statut}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Modal Ajout Médecin */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl w-full max-w-lg p-8 relative max-h-[90vh] overflow-y-auto">
-            <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
-            <h2 className="text-2xl font-bold mb-6">Ajouter un Médecin</h2>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-3xl w-full max-w-lg p-8 relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100">
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="text-2xl font-black mb-6 text-gray-900">Nouveau Médecin</h2>
             <form onSubmit={handleCreateMedecin} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <input placeholder="Prénom" required className="w-full p-3 rounded-xl border" value={form.prenom} onChange={e => setForm({...form, prenom: e.target.value})} />
-                <input placeholder="Nom" required className="w-full p-3 rounded-xl border" value={form.nom} onChange={e => setForm({...form, nom: e.target.value})} />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-gray-400 uppercase mb-1 block">Prénom *</label>
+                  <input placeholder="Prénom" required className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-orange-400 text-sm" value={form.prenom} onChange={e => setForm({ ...form, prenom: e.target.value })} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-400 uppercase mb-1 block">Nom *</label>
+                  <input placeholder="Nom" required className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-orange-400 text-sm" value={form.nom} onChange={e => setForm({ ...form, nom: e.target.value })} />
+                </div>
               </div>
-              <input type="email" placeholder="Email" required className="w-full p-3 rounded-xl border" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
-              <input type="password" placeholder="Mot de passe" required className="w-full p-3 rounded-xl border" value={form.password} onChange={e => setForm({...form, password: e.target.value})} />
-              <select required className="w-full p-3 rounded-xl border" value={form.idSpecialite} onChange={e => setForm({...form, idSpecialite: e.target.value})}>
-                <option value="">Sélectionner une spécialité</option>
-                {specialites.map(s => <option key={s.idSpecialite} value={s.idSpecialite}>{s.nom}</option>)}
-              </select>
-              <input placeholder="Téléphone" className="w-full p-3 rounded-xl border" value={form.telephone} onChange={e => setForm({...form, telephone: e.target.value})} />
-              <input placeholder="Adresse" className="w-full p-3 rounded-xl border" value={form.adresse} onChange={e => setForm({...form, adresse: e.target.value})} />
-              <button type="submit" className="w-full py-3 bg-orange-500 text-white font-bold rounded-xl hover:bg-orange-600">Créer le compte</button>
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-1 block">Email *</label>
+                <input type="email" placeholder="email@exemple.com" required className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-orange-400 text-sm" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-1 block">Mot de passe *</label>
+                <input type="password" placeholder="••••••••" required className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-orange-400 text-sm" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-1 block">Spécialité *</label>
+                <select required className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-orange-400 text-sm" value={form.idSpecialite} onChange={e => setForm({ ...form, idSpecialite: e.target.value })}>
+                  <option value="">— Sélectionner —</option>
+                  {specialites.map(s => <option key={s.idSpecialite} value={s.idSpecialite}>{s.nom}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-gray-400 uppercase mb-1 block">Téléphone</label>
+                  <input placeholder="+224..." className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-orange-400 text-sm" value={form.telephone} onChange={e => setForm({ ...form, telephone: e.target.value })} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-400 uppercase mb-1 block">Adresse</label>
+                  <input placeholder="Adresse" className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-orange-400 text-sm" value={form.adresse} onChange={e => setForm({ ...form, adresse: e.target.value })} />
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50">Annuler</button>
+                <button type="submit" disabled={creating} className="flex-1 py-3 rounded-xl bg-orange-500 text-white font-black hover:bg-orange-600 disabled:bg-gray-300 flex items-center justify-center gap-2">
+                  {creating && <Loader2 className="w-4 h-4 animate-spin" />} Créer
+                </button>
+              </div>
             </form>
           </div>
         </div>

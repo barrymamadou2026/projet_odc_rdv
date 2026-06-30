@@ -5,8 +5,14 @@ import DashboardTopbar from '@/components/medic/DashboardTopbar';
 import { patientApi, medecinApi } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Calendar, Clock, User, Stethoscope, FileText, XCircle, CheckCircle, ArrowLeft } from 'lucide-react';
+import { Calendar, Clock, User, Stethoscope, FileText, XCircle, CheckCircle, ArrowLeft, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+
+const STATUT_STYLE: Record<string, string> = {
+  ATTENTE: 'bg-orange-100 text-orange-700',
+  CONFIRME: 'bg-green-100 text-green-700',
+  ANNULE: 'bg-red-100 text-red-700',
+};
 
 const AppointmentDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -15,264 +21,247 @@ const AppointmentDetails: React.FC = () => {
   const [appointment, setAppointment] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [consultation, setConsultation] = useState<any>(null);
-  const [isConsultationModalOpen, setIsConsultationModalOpen] = useState(false);
+  const [isConsultOpen, setIsConsultOpen] = useState(false);
   const [diagnostic, setDiagnostic] = useState('');
-  const [notesMedicales, setNotesMedicales] = useState('');
+  const [notes, setNotes] = useState('');
   const [ordonnance, setOrdonnance] = useState('');
-  const [consultationLoading, setConsultationLoading] = useState(false);
+  const [consultLoading, setConsultLoading] = useState(false);
 
   useEffect(() => {
-    const fetchAppointmentDetails = async () => {
-      if (!id) return;
+    if (!id) return;
+    const load = async () => {
       setLoading(true);
       try {
-        const api = role === 'PATIENT' ? patientApi : medecinApi;
-        const allAppointments = await api.getMyAppointments();
-        const foundAppointment = allAppointments.find((apt: any) => apt.idRdv === Number(id));
-        if (foundAppointment) {
-          setAppointment(foundAppointment);
-          // Fetch consultation if it exists for this appointment
-          if (role === 'PATIENT' && foundAppointment.idRdv) {
-            const patientConsultations = await patientApi.getConsultations();
-            const foundConsultation = patientConsultations.find((cons: any) => cons.idRdv === foundAppointment.idRdv);
-            setConsultation(foundConsultation);
-          } else if (role === 'MEDECIN' && foundAppointment.idRdv) {
-            const medecinConsultations = await medecinApi.getConsultations();
-            const foundConsultation = medecinConsultations.find((cons: any) => cons.idRdv === foundAppointment.idRdv);
-            setConsultation(foundConsultation);
-          }
-        } else {
-          toast.error('Rendez-vous introuvable.');
-          navigate(-1);
-        }
-      } catch (error) {
-        console.error('Erreur lors du chargement des détails du rendez-vous:', error);
-        toast.error('Erreur lors du chargement des détails du rendez-vous.');
+        // On récupère la liste et on filtre par id
+        const api = role === 'MEDECIN' ? medecinApi : patientApi;
+        const all = await api.getMyAppointments();
+        const found = (all as any[]).find(a => a.idRdv === Number(id));
+        if (!found) { toast.error('Rendez-vous introuvable.'); navigate(-1); return; }
+        setAppointment(found);
+
+        // Chercher la consultation associée
+        const consults = role === 'MEDECIN'
+          ? await medecinApi.getMyConsultations()
+          : await patientApi.getMyConsultations();
+        const c = (consults as any[]).find(c => c.idRdv === Number(id));
+        setConsultation(c || null);
+      } catch {
+        toast.error('Erreur lors du chargement.');
         navigate(-1);
       } finally {
         setLoading(false);
       }
     };
-
-    fetchAppointmentDetails();
+    load();
   }, [id, role, navigate]);
 
   const handleConfirm = async () => {
-    if (!appointment || !appointment.idRdv) return;
+    if (!appointment) return;
     try {
       await medecinApi.confirmAppointment(appointment.idRdv);
-      toast.success('Rendez-vous confirmé');
-      setAppointment((prev: any) => ({ ...prev, statut: 'CONFIRME' }));
-    } catch (error) {
-      console.error('Confirmation error:', error);
-      toast.error('Erreur lors de la confirmation');
-    }
+      toast.success('Rendez-vous confirmé !');
+      setAppointment((p: any) => ({ ...p, statut: 'CONFIRME' }));
+    } catch (e: any) { toast.error(e.message || 'Erreur confirmation'); }
   };
 
   const handleCancel = async () => {
-    if (!appointment || !appointment.idRdv) return;
+    if (!appointment) return;
     try {
-      if (role === 'MEDECIN') {
-        await medecinApi.cancelAppointment(appointment.idRdv);
-      } else {
-        await patientApi.cancelAppointment(appointment.idRdv);
-      }
-      toast.success('Rendez-vous annulé');
-      setAppointment((prev: any) => ({ ...prev, statut: 'ANNULE' }));
-    } catch (error) {
-      console.error('Cancellation error:', error);
-      toast.error('Erreur lors de l\'annulation');
-    }
+      if (role === 'MEDECIN') await medecinApi.cancelAppointment(appointment.idRdv);
+      else await patientApi.cancelAppointment(appointment.idRdv);
+      toast.success('Rendez-vous annulé.');
+      setAppointment((p: any) => ({ ...p, statut: 'ANNULE' }));
+    } catch (e: any) { toast.error(e.message || 'Erreur annulation'); }
   };
 
-  const handleRedigerConsultation = async (e: React.FormEvent) => {
+  const handleConsult = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!appointment || !appointment.idRdv) return;
-    setConsultationLoading(true);
+    if (!diagnostic.trim()) { toast.error('Le diagnostic est requis'); return; }
+    setConsultLoading(true);
     try {
-      const response = await medecinApi.redigerConsultation(appointment.idRdv, { diagnostic, notesMedicales, ordonnance });
-      setConsultation(response);
-      toast.success('Consultation rédigée avec succès !');
-      setIsConsultationModalOpen(false);
-      setDiagnostic('');
-      setNotesMedicales('');
-      setOrdonnance('');
-    } catch (error) {
-      console.error('Erreur lors de la rédaction de la consultation:', error);
-      toast.error('Erreur lors de la rédaction de la consultation.');
-    } finally {
-      setConsultationLoading(false);
-    }
+      const c = await medecinApi.redigerConsultation(appointment.idRdv, { diagnostic, notesMedicales: notes, ordonnance });
+      setConsultation(c);
+      toast.success('Consultation enregistrée !');
+      setIsConsultOpen(false);
+    } catch (e: any) { toast.error(e.message || 'Erreur enregistrement'); }
+    finally { setConsultLoading(false); }
   };
 
-  if (loading) {
-    return (
-      <DashboardShell active="Rendez-vous">
-        <DashboardTopbar title="Détails du Rendez-vous" />
-        <div className="text-center py-10 text-gray-400">Chargement des détails du rendez-vous...</div>
-      </DashboardShell>
-    );
-  }
+  if (loading) return (
+    <DashboardShell active="Rendez-vous">
+      <DashboardTopbar title="Détails du Rendez-vous" />
+      <div className="flex items-center justify-center py-24"><Loader2 className="w-8 h-8 animate-spin text-orange-500" /></div>
+    </DashboardShell>
+  );
 
-  if (!appointment) {
-    return (
-      <DashboardShell active="Rendez-vous">
-        <DashboardTopbar title="Détails du Rendez-vous" />
-        <div className="text-center py-10 text-red-500">Rendez-vous introuvable.</div>
-      </DashboardShell>
-    );
-  }
+  if (!appointment) return null;
 
-  const isMedecin = role === 'MEDECIN';
-  const isPatient = role === 'PATIENT';
+  const dateHeure = appointment.dateHeure ? new Date(appointment.dateHeure) : null;
 
   return (
     <DashboardShell active="Rendez-vous">
       <DashboardTopbar title="Détails du Rendez-vous" />
 
-      <div className="mb-6">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-orange-600 hover:underline">
-          <ArrowLeft className="w-4 h-4" /> Retour aux rendez-vous
+      <div className="mb-4">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-orange-500 transition-colors font-semibold">
+          <ArrowLeft className="w-4 h-4" /> Retour
         </button>
       </div>
 
-      <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm">
-        <h3 className="text-xl font-bold text-gray-900 mb-4">Informations sur le Rendez-vous</h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <div>
-            <p className="text-gray-500 text-sm">Date et Heure</p>
-            <p className="font-bold text-lg flex items-center gap-2"><Calendar className="w-5 h-5 text-orange-500" /> {new Date(appointment.dateHeure).toLocaleString()}</p>
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Infos principales */}
+        <div className="lg:col-span-2 space-y-5">
+          <div className="bg-white rounded-3xl border border-gray-100 p-8 shadow-sm">
+            <div className="flex items-start justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Rendez-vous #{appointment.idRdv}</h2>
+              <span className={`px-3 py-1 rounded-full text-xs font-extrabold tracking-wider ${STATUT_STYLE[appointment.statut] || 'bg-gray-100 text-gray-600'}`}>
+                {appointment.statut}
+              </span>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 text-gray-700">
+                <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center"><Calendar className="w-5 h-5 text-orange-500" /></div>
+                <div>
+                  <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Date</p>
+                  <p className="font-bold">{dateHeure ? dateHeure.toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '–'}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 text-gray-700">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center"><Clock className="w-5 h-5 text-blue-500" /></div>
+                <div>
+                  <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Heure</p>
+                  <p className="font-bold">{dateHeure ? dateHeure.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '–'}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 text-gray-700">
+                <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
+                  {role === 'PATIENT' ? <Stethoscope className="w-5 h-5 text-purple-500" /> : <User className="w-5 h-5 text-purple-500" />}
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">{role === 'PATIENT' ? 'Médecin' : 'Patient'}</p>
+                  <p className="font-bold">
+                    {role === 'PATIENT'
+                      ? `Dr. ${appointment.prenomMedecin || ''} ${appointment.nomMedecin || appointment.medecinNom || ''}`
+                      : `${appointment.prenomPatient || ''} ${appointment.nomPatient || appointment.patientNom || ''}`}
+                  </p>
+                </div>
+              </div>
+              {appointment.motif && (
+                <div className="flex items-start gap-3 text-gray-700">
+                  <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center"><FileText className="w-5 h-5 text-gray-400" /></div>
+                  <div>
+                    <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Motif</p>
+                    <p className="font-medium">{appointment.motif}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            {appointment.statut !== 'ANNULE' && (
+              <div className="flex flex-wrap gap-3 mt-8 pt-6 border-t border-gray-100">
+                {role === 'MEDECIN' && appointment.statut === 'ATTENTE' && (
+                  <button onClick={handleConfirm} className="flex items-center gap-2 px-5 py-2.5 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 transition-colors">
+                    <CheckCircle className="w-4 h-4" /> Confirmer
+                  </button>
+                )}
+                {role === 'MEDECIN' && appointment.statut === 'CONFIRME' && !consultation && (
+                  <button onClick={() => setIsConsultOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors">
+                    <Stethoscope className="w-4 h-4" /> Rédiger consultation
+                  </button>
+                )}
+                <button onClick={handleCancel} className="flex items-center gap-2 px-5 py-2.5 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors">
+                  <XCircle className="w-4 h-4" /> Annuler le RDV
+                </button>
+              </div>
+            )}
           </div>
-          <div>
-            <p className="text-gray-500 text-sm">Durée</p>
-            <p className="font-bold text-lg flex items-center gap-2"><Clock className="w-5 h-5 text-orange-500" /> {appointment.duree} minutes</p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-sm">Statut</p>
-            <span className={`px-3 py-1 rounded-full text-sm font-bold ${
-              appointment.statut === 'CONFIRME' ? 'bg-green-100 text-green-700' :
-              appointment.statut === 'ANNULE' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
-            }`}>
-              {appointment.statut}
-            </span>
-          </div>
-          <div>
-            <p className="text-gray-500 text-sm">Motif</p>
-            <p className="font-bold text-lg">{appointment.motif || 'Non spécifié'}</p>
-          </div>
+
+          {/* Consultation existante */}
+          {consultation && (
+            <div className="bg-white rounded-3xl border border-green-100 p-8 shadow-sm">
+              <h3 className="text-xl font-bold text-gray-900 mb-5 flex items-center gap-2">
+                <Stethoscope className="w-5 h-5 text-green-500" /> Compte-rendu de consultation
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Diagnostic</p>
+                  <p className="text-gray-700 bg-gray-50 rounded-xl p-4">{consultation.diagnostic}</p>
+                </div>
+                {consultation.notesMedicales && (
+                  <div>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Notes médicales</p>
+                    <p className="text-gray-700 bg-gray-50 rounded-xl p-4">{consultation.notesMedicales}</p>
+                  </div>
+                )}
+                {consultation.ordonnance && (
+                  <div>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Ordonnance</p>
+                    <div className="bg-green-50 border border-green-100 rounded-xl p-4">
+                      <p className="text-gray-700 whitespace-pre-line">{consultation.ordonnance}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
-        {isPatient && (
-          <div className="mb-6">
-            <p className="text-gray-500 text-sm">Médecin</p>
-            <p className="font-bold text-lg flex items-center gap-2"><Stethoscope className="w-5 h-5 text-blue-500" /> Dr. {appointment.medecinNom || (appointment.prenomMedecin + ' ' + appointment.nomMedecin)}</p>
+        {/* Sidebar ODC */}
+        <div className="space-y-5">
+          <div className="bg-orange-500 rounded-3xl p-6 text-white shadow-lg shadow-orange-100">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-9 h-9 rounded-xl overflow-hidden bg-white/20">
+                <img src="/odc-logo.png" alt="ODC" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
+              </div>
+              <div>
+                <p className="font-bold text-sm">MedConnect ODC</p>
+                <p className="text-xs text-orange-200">RDV sécurisé</p>
+              </div>
+            </div>
+            <p className="text-sm text-orange-100">Ce rendez-vous est géré de façon sécurisée par la plateforme MedConnect ODC-Guinée.</p>
           </div>
-        )}
-
-        {isMedecin && (
-          <div className="mb-6">
-            <p className="text-gray-500 text-sm">Patient</p>
-            <p className="font-bold text-lg flex items-center gap-2"><User className="w-5 h-5 text-green-500" /> {appointment.patientNom || (appointment.prenomPatient + ' ' + appointment.nomPatient)}</p>
+          <div className="bg-white rounded-3xl border border-gray-100 p-5 shadow-sm">
+            <h4 className="font-bold text-gray-900 mb-3 text-sm">Informations RDV</h4>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Durée</span>
+                <span className="font-semibold">{appointment.duree || 30} min</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Consultation</span>
+                <span className={`font-semibold ${consultation ? 'text-green-600' : 'text-gray-400'}`}>{consultation ? 'Rédigée' : 'En attente'}</span>
+              </div>
+            </div>
           </div>
-        )}
-
-        <div className="flex gap-4 mt-6">
-          {isMedecin && appointment.statut === 'ATTENTE' && (
-            <button onClick={handleConfirm} className="px-4 py-2 bg-green-500 text-white rounded-xl font-bold flex items-center gap-2 hover:bg-green-600 transition-colors">
-              <CheckCircle className="w-4 h-4" /> Confirmer
-            </button>
-          )}
-          {(appointment.statut === 'ATTENTE' || appointment.statut === 'CONFIRME') && (
-            <button onClick={handleCancel} className="px-4 py-2 bg-red-500 text-white rounded-xl font-bold flex items-center gap-2 hover:bg-red-600 transition-colors">
-              <XCircle className="w-4 h-4" /> Annuler
-            </button>
-          )}
-          {isMedecin && appointment.statut === 'CONFIRME' && !consultation && (
-            <button onClick={() => setIsConsultationModalOpen(true)} className="px-4 py-2 bg-blue-500 text-white rounded-xl font-bold flex items-center gap-2 hover:bg-blue-600 transition-colors">
-              <FileText className="w-4 h-4" /> Rédiger Consultation
-            </button>
-          )}
         </div>
       </div>
 
-      {consultation && (
-        <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm mt-6">
-          <h3 className="text-xl font-bold text-gray-900 mb-4">Détails de la Consultation</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <p className="text-gray-500 text-sm">Date de Consultation</p>
-              <p className="font-bold text-lg">{new Date(consultation.dateConsultation).toLocaleString()}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 text-sm">Diagnostic</p>
-              <p className="font-bold text-lg">{consultation.diagnostic}</p>
-            </div>
-            <div className="md:col-span-2">
-              <p className="text-gray-500 text-sm">Notes Médicales</p>
-              <p className="font-bold text-lg whitespace-pre-wrap">{consultation.notesMedicales}</p>
-            </div>
-            <div className="md:col-span-2">
-              <p className="text-gray-500 text-sm">Ordonnance</p>
-              <p className="font-bold text-lg whitespace-pre-wrap">{consultation.ordonnance || 'Aucune ordonnance'}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Consultation Modal */}
-      <Dialog open={isConsultationModalOpen} onOpenChange={setIsConsultationModalOpen}>
-        <DialogContent className="sm:max-w-[600px] bg-white rounded-3xl p-6">
+      {/* Modal consultation */}
+      <Dialog open={isConsultOpen} onOpenChange={setIsConsultOpen}>
+        <DialogContent className="sm:max-w-lg bg-white rounded-3xl p-6">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-gray-900">Rédiger une Consultation</DialogTitle>
-            <DialogDescription>
-              Remplissez les détails de la consultation pour ce rendez-vous.
-            </DialogDescription>
+            <DialogTitle className="text-xl font-bold">Rédiger la consultation</DialogTitle>
+            <DialogDescription>Ces informations seront visibles dans le dossier médical du patient.</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleRedigerConsultation} className="space-y-4 mt-4">
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Diagnostic</label>
-              <textarea
-                value={diagnostic}
-                onChange={(e) => setDiagnostic(e.target.value)}
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
-                rows={3}
-                required
-              />
+          <form onSubmit={handleConsult} className="space-y-4 mt-3">
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Diagnostic *</label>
+              <textarea required value={diagnostic} onChange={e => setDiagnostic(e.target.value)} rows={3} placeholder="Diagnostic principal..." className="w-full border border-gray-200 rounded-xl p-3 text-sm bg-gray-50 outline-none focus:ring-2 focus:ring-orange-400 resize-none" />
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Notes Médicales</label>
-              <textarea
-                value={notesMedicales}
-                onChange={(e) => setNotesMedicales(e.target.value)}
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
-                rows={5}
-              />
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Notes médicales</label>
+              <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Observations..." className="w-full border border-gray-200 rounded-xl p-3 text-sm bg-gray-50 outline-none focus:ring-2 focus:ring-orange-400 resize-none" />
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Ordonnance</label>
-              <textarea
-                value={ordonnance}
-                onChange={(e) => setOrdonnance(e.target.value)}
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
-                rows={5}
-              />
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Ordonnance</label>
+              <textarea value={ordonnance} onChange={e => setOrdonnance(e.target.value)} rows={2} placeholder="Médicaments prescrits..." className="w-full border border-gray-200 rounded-xl p-3 text-sm bg-gray-50 outline-none focus:ring-2 focus:ring-orange-400 resize-none" />
             </div>
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setIsConsultationModalOpen(false)}
-                className="flex-1 py-2.5 border border-gray-200 text-gray-700 font-bold text-sm rounded-xl hover:bg-gray-50 transition-colors"
-                disabled={consultationLoading}
-              >
-                Annuler
-              </button>
-              <button
-                type="submit"
-                className="flex-1 py-2.5 bg-blue-600 text-white font-bold text-sm rounded-xl hover:bg-blue-700 transition-colors shadow-sm disabled:bg-gray-300"
-                disabled={consultationLoading}
-              >
-                {consultationLoading ? "Envoi..." : "Rédiger"}
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={() => setIsConsultOpen(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50">Annuler</button>
+              <button type="submit" disabled={consultLoading} className="flex-1 py-2.5 rounded-xl bg-orange-500 text-white font-bold hover:bg-orange-600 disabled:bg-gray-300 flex items-center justify-center gap-2">
+                {consultLoading && <Loader2 className="w-4 h-4 animate-spin" />} Enregistrer
               </button>
             </div>
           </form>

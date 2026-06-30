@@ -4,258 +4,236 @@ import DashboardTopbar from '@/components/medic/DashboardTopbar';
 import { userApi } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { User, Bell, Shield, Globe, Camera, Loader2, KeyRound } from 'lucide-react';
+import { User, Camera, Loader2, KeyRound, Save } from 'lucide-react';
 
 const Settings: React.FC = () => {
   const { user, role } = useAuth();
-  const [userProfile, setUserProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [nom, setNom] = useState('');
   const [prenom, setPrenom] = useState('');
   const [email, setEmail] = useState('');
   const [telephone, setTelephone] = useState('');
   const [adresse, setAdresse] = useState('');
-  const [antecedentsMedicaux, setAntecedentsMedicaux] = useState('');
-  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
-
+  const [antecedents, setAntecedents] = useState('');
+  const [profileImg, setProfileImg] = useState<string | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
-  const [profileUpdateLoading, setProfileUpdateLoading] = useState(false);
+  const [updateLoading, setUpdateLoading] = useState(false);
 
-  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
-  const [oldPassword, setOldPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmNewPassword, setConfirmNewPassword] = useState('');
-  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [pwdOpen, setPwdOpen] = useState(false);
+  const [oldPwd, setOldPwd] = useState('');
+  const [newPwd, setNewPwd] = useState('');
+  const [confirmPwd, setConfirmPwd] = useState('');
+  const [pwdLoading, setPwdLoading] = useState(false);
 
-  const [isImageUploadModalOpen, setIsImageUploadModalOpen] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imageUploadLoading, setImageUploadLoading] = useState(false);
+  const [imgOpen, setImgOpen] = useState(false);
+  const [selectedImg, setSelectedImg] = useState<File | null>(null);
+  const [imgLoading, setImgLoading] = useState(false);
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const profile = await userApi.getUserProfile();
-        setUserProfile(profile);
-        setNom(profile.nom);
-        setPrenom(profile.prenom);
-        setEmail(profile.email);
-        setTelephone(profile.telephone || '');
-        setAdresse(profile.adresse || '');
-        setAntecedentsMedicaux(profile.antecedentsMedicaux || '');
-        setProfileImageUrl(profile.profileImageUrl || null);
-      } catch (error) {
-        console.error('Erreur lors du chargement du profil:', error);
-        toast.error('Erreur lors du chargement du profil.');
-      } finally {
-        setProfileLoading(false);
-      }
-    };
-
-    fetchProfile();
+    userApi.getProfile()
+      .then(p => {
+        setProfile(p);
+        setNom(p.nom || '');
+        setPrenom(p.prenom || '');
+        setEmail(p.email || '');
+        setTelephone(p.telephone || '');
+        setAdresse(p.adresse || '');
+        setAntecedents(p.antecedentsMedicaux || '');
+        setProfileImg(p.profileImageUrl || null);
+      })
+      .catch(() => toast.error('Erreur lors du chargement du profil.'))
+      .finally(() => setProfileLoading(false));
   }, []);
 
-  const handleProfileUpdate = async (e: React.FormEvent) => {
+  const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setProfileUpdateLoading(true);
+    setUpdateLoading(true);
     try {
-      const updatedProfile = await userApi.updateProfile({
-        nom,
-        prenom,
-        email,
-        telephone,
-        adresse,
-        antecedentsMedicaux,
-      });
-      setUserProfile(updatedProfile);
-      toast.success('Profil mis à jour avec succès !');
-    } catch (error: any) {
-      console.error('Erreur lors de la mise à jour du profil:', error);
-      toast.error(error.message || 'Erreur lors de la mise à jour du profil.');
+      const updated = await userApi.updateProfile({ nom, prenom, email, telephone, adresse, antecedentsMedicaux: antecedents });
+      setProfile(updated);
+      toast.success('Profil mis à jour !');
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur mise à jour.');
     } finally {
-      setProfileUpdateLoading(false);
+      setUpdateLoading(false);
     }
   };
 
-  const handleChangePassword = async (e: React.FormEvent) => {
+  const handleChangePwd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPassword !== confirmNewPassword) {
-      toast.error('Les nouveaux mots de passe ne correspondent pas.');
-      return;
-    }
-    if (newPassword.length < 6) {
-      toast.error('Le nouveau mot de passe doit contenir au moins 6 caractères.');
-      return;
-    }
-    setPasswordLoading(true);
+    if (newPwd !== confirmPwd) { toast.error("Les mots de passe ne correspondent pas."); return; }
+    if (newPwd.length < 6) { toast.error("Minimum 6 caractères requis."); return; }
+    setPwdLoading(true);
     try {
-      const response = await userApi.changePassword({ oldPassword, newPassword });
-      toast.success(response);
-      setIsPasswordModalOpen(false);
-      setOldPassword('');
-      setNewPassword('');
-      setConfirmNewPassword('');
-    } catch (error: any) {
-      console.error('Erreur lors du changement de mot de passe:', error);
-      toast.error(error.message || 'Erreur lors du changement de mot de passe.');
+      await userApi.changePassword({ oldPassword: oldPwd, newPassword: newPwd });
+      toast.success('Mot de passe modifié avec succès !');
+      setPwdOpen(false);
+      setOldPwd(''); setNewPwd(''); setConfirmPwd('');
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur changement de mot de passe.');
     } finally {
-      setPasswordLoading(false);
+      setPwdLoading(false);
     }
   };
 
-  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedImage(e.target.files[0]);
+  const handleImgUpload = async () => {
+    if (!selectedImg) { toast.error('Sélectionnez une image.'); return; }
+    setImgLoading(true);
+    try {
+      const url = await userApi.uploadProfileImage(selectedImg);
+      setProfileImg(url);
+      toast.success('Photo de profil mise à jour !');
+      setImgOpen(false);
+      setSelectedImg(null);
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur lors du téléchargement.');
+    } finally {
+      setImgLoading(false);
     }
   };
 
-  const handleImageUpload = async () => {
-    if (!selectedImage) {
-      toast.error('Veuillez sélectionner une image à télécharger.');
-      return;
-    }
-    setImageUploadLoading(true);
-    try {
-      const imageUrl = await userApi.uploadProfileImage(selectedImage);
-      setProfileImageUrl(imageUrl);
-      toast.success('Image de profil téléchargée avec succès !');
-      setIsImageUploadModalOpen(false);
-      setSelectedImage(null);
-    } catch (error: any) {
-      console.error('Erreur lors du téléchargement de l\'image:', error);
-      toast.error(error.message || 'Erreur lors du téléchargement de l\'image.');
-    } finally {
-      setImageUploadLoading(false);
-    }
-  };
+  if (profileLoading) {
+    return (
+      <DashboardShell active="Paramètres">
+        <DashboardTopbar title="Paramètres" />
+        <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-orange-500" /></div>
+      </DashboardShell>
+    );
+  }
+
   return (
     <DashboardShell active="Paramètres">
-      <DashboardTopbar title="Paramètres" />
-      <div className="max-w-4xl bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-gray-50">
-          <h3 className="text-lg font-bold flex items-center gap-2"><User className="w-5 h-5 text-orange-500" /> Profil Personnel</h3>
-          <p className="text-sm text-gray-500 mt-1">Gérez vos informations de compte et votre visibilité.</p>
-        </div>
-        <div className="p-6 space-y-6">
-          {profileLoading ? (
-            <div className="text-center py-10 text-gray-400 flex items-center justify-center gap-2">
-              <Loader2 className="w-5 h-5 animate-spin" /> Chargement du profil...
-            </div>
-          ) : (
-            <form onSubmit={handleProfileUpdate} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <Label htmlFor="nom">Nom</Label>
-                  <Input id="nom" value={nom} onChange={(e) => setNom(e.target.value)} required />
-                </div>
-                <div>
-                  <Label htmlFor="prenom">Prénom</Label>
-                  <Input id="prenom" value={prenom} onChange={(e) => setPrenom(e.target.value)} required />
-                </div>
-                <div>
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-                </div>
-                <div>
-                  <Label htmlFor="telephone">Téléphone</Label>
-                  <Input id="telephone" value={telephone} onChange={(e) => setTelephone(e.target.value)} />
-                </div>
-                <div className="md:col-span-2">
-                  <Label htmlFor="adresse">Adresse</Label>
-                  <Textarea id="adresse" value={adresse} onChange={(e) => setAdresse(e.target.value)} />
-                </div>
-                {role === 'PATIENT' && (
-                  <div className="md:col-span-2">
-                    <Label htmlFor="antecedentsMedicaux">Antécédents Médicaux</Label>
-                    <Textarea id="antecedentsMedicaux" value={antecedentsMedicaux} onChange={(e) => setAntecedentsMedicaux(e.target.value)} />
-                  </div>
-                )}
-              </div>
-              <Button type="submit" disabled={profileUpdateLoading}>
-                {profileUpdateLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Enregistrer les modifications
-              </Button>
-            </form>
-          )}
+      <DashboardTopbar title="Paramètres du Compte" />
 
-          <div className="p-6 border-t border-gray-50">
-            <h3 className="text-lg font-bold flex items-center gap-2"><Camera className="w-5 h-5 text-purple-500" /> Image de Profil</h3>
-            <p className="text-sm text-gray-500 mt-1">Mettez à jour votre photo de profil.</p>
-            <div className="flex items-center gap-4 mt-4">
-              <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden border border-gray-200">
-                {profileImageUrl ? (
-                  <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
-                ) : (
-                  <User className="w-12 h-12 text-gray-400" />
-                )}
-              </div>
-              <Dialog open={isImageUploadModalOpen} onOpenChange={setIsImageUploadModalOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" className="flex items-center gap-2">
-                    <Camera className="w-4 h-4" /> Télécharger une image
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px] bg-white rounded-3xl p-6">
-                  <DialogHeader>
-                    <DialogTitle className="text-xl font-bold text-gray-900">Télécharger une image de profil</DialogTitle>
-                    <DialogDescription>
-                      Sélectionnez une image à télécharger pour votre profil.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <Input id="picture" type="file" onChange={handleImageFileChange} accept="image/*" />
-                  </div>
-                  <Button onClick={handleImageUpload} disabled={imageUploadLoading || !selectedImage}>
-                    {imageUploadLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Télécharger
-                  </Button>
-                </DialogContent>
-              </Dialog>
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Sidebar profil */}
+        <div className="space-y-6">
+          <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm text-center">
+            <div className="relative inline-block mb-4">
+              {profileImg ? (
+                <img src={profileImg} alt="Profil" className="w-24 h-24 rounded-2xl object-cover border-4 border-orange-100" />
+              ) : (
+                <div className="w-24 h-24 rounded-2xl bg-orange-100 flex items-center justify-center text-orange-600 text-3xl font-black border-4 border-orange-50">
+                  {prenom?.[0]}{nom?.[0]}
+                </div>
+              )}
+              <button onClick={() => setImgOpen(true)} className="absolute -bottom-2 -right-2 w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center shadow-md hover:bg-orange-600 transition-colors">
+                <Camera className="w-4 h-4 text-white" />
+              </button>
             </div>
+            <p className="font-bold text-gray-900">{prenom} {nom}</p>
+            <p className="text-sm text-gray-500">{email}</p>
+            <span className="inline-block mt-2 px-3 py-1 rounded-full bg-orange-100 text-orange-600 text-xs font-bold uppercase">{role}</span>
+          </div>
+
+          <div className="bg-white rounded-3xl border border-gray-100 p-5 shadow-sm">
+            <h4 className="font-bold text-gray-900 mb-3">Sécurité</h4>
+            <button onClick={() => setPwdOpen(true)} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-50 hover:bg-orange-50 text-gray-700 font-semibold text-sm transition-colors border border-gray-100">
+              <KeyRound className="w-4 h-4 text-orange-500" /> Changer le mot de passe
+            </button>
+          </div>
+
+          <div className="bg-orange-500 rounded-3xl p-5 text-white shadow-lg shadow-orange-200">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-8 h-8 rounded-lg overflow-hidden bg-white/20">
+                <img src="/odc-logo.png" alt="ODC" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
+              </div>
+              <div>
+                <p className="font-bold text-sm">ODC-Guinée</p>
+                <p className="text-xs text-orange-200">Projet de Fin de Formation</p>
+              </div>
+            </div>
+            <p className="text-xs text-orange-100">MedConnect – Plateforme de gestion médicale sécurisée.</p>
           </div>
         </div>
 
-        <div className="p-6 border-t border-gray-50">
-          <h3 className="text-lg font-bold flex items-center gap-2"><Shield className="w-5 h-5 text-blue-500" /> Sécurité</h3>
-          <p className="text-sm text-gray-500 mt-1">Changez votre mot de passe et sécurisez votre accès.</p>
-          <Dialog open={isPasswordModalOpen} onOpenChange={setIsPasswordModalOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="mt-4 flex items-center gap-2">
-                <KeyRound className="w-4 h-4" /> Changer le mot de passe
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px] bg-white rounded-3xl p-6">
-              <DialogHeader>
-                <DialogTitle className="text-xl font-bold text-gray-900">Changer le mot de passe</DialogTitle>
-                <DialogDescription>
-                  Entrez votre ancien mot de passe et votre nouveau mot de passe.
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleChangePassword} className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="oldPassword">Ancien mot de passe</Label>
-                  <Input id="oldPassword" type="password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} required />
+        {/* Formulaire principal */}
+        <div className="lg:col-span-2">
+          <div className="bg-white rounded-3xl border border-gray-100 p-8 shadow-sm">
+            <h3 className="text-xl font-bold text-gray-900 mb-6">Informations personnelles</h3>
+            <form onSubmit={handleUpdate} className="space-y-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="prenom" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Prénom</Label>
+                  <Input id="prenom" value={prenom} onChange={e => setPrenom(e.target.value)} className="mt-1 rounded-xl" />
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="newPassword">Nouveau mot de passe</Label>
-                  <Input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
+                <div>
+                  <Label htmlFor="nom" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Nom</Label>
+                  <Input id="nom" value={nom} onChange={e => setNom(e.target.value)} className="mt-1 rounded-xl" />
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="confirmNewPassword">Confirmer le nouveau mot de passe</Label>
-                  <Input id="confirmNewPassword" type="password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} required />
+              </div>
+              <div>
+                <Label htmlFor="email" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Email</Label>
+                <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} className="mt-1 rounded-xl" />
+              </div>
+              <div>
+                <Label htmlFor="tel" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Téléphone</Label>
+                <Input id="tel" value={telephone} onChange={e => setTelephone(e.target.value)} className="mt-1 rounded-xl" />
+              </div>
+              <div>
+                <Label htmlFor="adresse" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Adresse</Label>
+                <Input id="adresse" value={adresse} onChange={e => setAdresse(e.target.value)} className="mt-1 rounded-xl" />
+              </div>
+              {role === 'PATIENT' && (
+                <div>
+                  <Label htmlFor="ant" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Antécédents médicaux</Label>
+                  <Textarea id="ant" value={antecedents} onChange={e => setAntecedents(e.target.value)} rows={3} className="mt-1 rounded-xl resize-none" />
                 </div>
-                <Button type="submit" disabled={passwordLoading}>
-                  {passwordLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Changer le mot de passe
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+              )}
+              <button type="submit" disabled={updateLoading} className="flex items-center gap-2 px-8 py-3 bg-orange-500 text-white font-bold rounded-xl hover:bg-orange-600 disabled:bg-gray-300 transition-colors shadow-sm">
+                {updateLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {updateLoading ? 'Enregistrement...' : 'Enregistrer les modifications'}
+              </button>
+            </form>
+          </div>
         </div>
       </div>
+
+      {/* Modal changement mot de passe */}
+      <Dialog open={pwdOpen} onOpenChange={setPwdOpen}>
+        <DialogContent className="sm:max-w-md bg-white rounded-3xl p-6">
+          <DialogHeader>
+            <DialogTitle className="font-bold text-xl">Changer le mot de passe</DialogTitle>
+            <DialogDescription>Saisissez votre mot de passe actuel puis le nouveau.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleChangePwd} className="space-y-4 mt-3">
+            <div><Label>Mot de passe actuel</Label><Input type="password" value={oldPwd} onChange={e => setOldPwd(e.target.value)} required className="mt-1 rounded-xl" /></div>
+            <div><Label>Nouveau mot de passe</Label><Input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} required className="mt-1 rounded-xl" /></div>
+            <div><Label>Confirmer le nouveau mot de passe</Label><Input type="password" value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)} required className="mt-1 rounded-xl" /></div>
+            <div className="flex gap-3 pt-1">
+              <Button type="button" variant="outline" className="flex-1 rounded-xl" onClick={() => setPwdOpen(false)}>Annuler</Button>
+              <Button type="submit" disabled={pwdLoading} className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl">
+                {pwdLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Confirmer
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal photo de profil */}
+      <Dialog open={imgOpen} onOpenChange={setImgOpen}>
+        <DialogContent className="sm:max-w-sm bg-white rounded-3xl p-6">
+          <DialogHeader>
+            <DialogTitle className="font-bold text-xl">Photo de profil</DialogTitle>
+            <DialogDescription>Téléchargez une nouvelle photo (.jpg, .png, .webp)</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-3">
+            <input type="file" accept="image/*" onChange={e => setSelectedImg(e.target.files?.[0] || null)} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-orange-50 file:text-orange-600 hover:file:bg-orange-100" />
+            {selectedImg && <p className="text-sm text-gray-500">Fichier sélectionné : {selectedImg.name}</p>}
+            <div className="flex gap-3">
+              <Button type="button" variant="outline" className="flex-1 rounded-xl" onClick={() => setImgOpen(false)}>Annuler</Button>
+              <Button onClick={handleImgUpload} disabled={imgLoading || !selectedImg} className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl">
+                {imgLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Télécharger
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardShell>
   );
 };
