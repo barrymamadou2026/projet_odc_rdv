@@ -1,0 +1,88 @@
+package com.odc.backend_medic.service;
+
+import com.odc.backend_medic.dto.CreateMedecinRequest;
+import com.odc.backend_medic.dto.RendezVousResponse;
+import com.odc.backend_medic.dto.UserResponse;
+import com.odc.backend_medic.models.Medecin;
+import com.odc.backend_medic.models.Specialite;
+import com.odc.backend_medic.models.User;
+import com.odc.backend_medic.models.enumeration.Role;
+import com.odc.backend_medic.repository.MedecinRepository;
+import com.odc.backend_medic.repository.RendezVousRepository;
+import com.odc.backend_medic.repository.SpecialiteRepository;
+import com.odc.backend_medic.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Optional;
+
+@Service
+@RequiredArgsConstructor
+public class AdminService {
+
+    private final UserRepository userRepository;
+    private final MedecinRepository medecinRepository;
+    private final SpecialiteRepository specialiteRepository;
+    private final RendezVousRepository rendezVousRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    public List<UserResponse> getAllUsers() {
+        return userRepository.findAll().stream()
+                .map(UserResponse::fromEntity)
+                .toList();
+    }
+
+    @Transactional
+    public Optional<UserResponse> createMedecin(CreateMedecinRequest request) {
+        if (userRepository.existsByEmail(request.getEmail())) {
+            return Optional.empty();
+        }
+
+        Specialite specialite = specialiteRepository.findById(request.getIdSpecialite())
+                .orElseThrow(() -> new IllegalArgumentException("Spécialité introuvable"));
+
+        User user = User.builder()
+                .nom(request.getNom())
+                .prenom(request.getPrenom())
+                .email(request.getEmail())
+                .password(passwordEncoder.encode(request.getPassword()))
+                .role(Role.MEDECIN)
+                .estActif(true)
+                .build();
+
+        User savedUser = userRepository.save(user);
+
+        Medecin medecin = Medecin.builder()
+                .user(savedUser)
+                .specialite(specialite)
+                .telephone(request.getTelephone())
+                .adresse(request.getAdresse())
+                .build();
+
+        medecinRepository.save(medecin);
+
+        return Optional.of(UserResponse.fromEntity(savedUser));
+    }
+
+    @Transactional
+    public Optional<UserResponse> changeUserActivity(Long idUtilisateur, boolean actif) {
+        return userRepository.findById(idUtilisateur)
+                .map(user -> {
+                    user.setEstActif(actif);
+                    return UserResponse.fromEntity(userRepository.save(user));
+                });
+    }
+
+    public List<RendezVousResponse> getAllRendezVous() {
+        return rendezVousRepository.findAll().stream()
+                .map(RendezVousResponse::fromEntity)
+                .toList();
+    }
+
+    public List<Specialite> getAllSpecialites() {
+        return specialiteRepository.findAll();
+    }
+}

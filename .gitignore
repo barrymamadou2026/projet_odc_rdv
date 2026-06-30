@@ -1,0 +1,20 @@
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/Images_Desktop
+frontend/Images_Mobile
+frontend/Images_Desktop.zip
+
+
+# Backend
+backend/backend_medic/target/
+backend/backend_medic/.mvn/
+backend/backend_medic/*.jar
+backend/backend_medic/.env
+backend/backend_medic/src/main/resources/application.properties
+
+# IDEs & OS
+.vscode/
+.idea/
+.DS_Store
