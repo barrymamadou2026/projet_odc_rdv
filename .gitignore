@@ -18,3 +18,6 @@ backend/backend_medic/src/main/resources/application.properties
 .vscode/
 .idea/
 .DS_Store
+
+# Documentation
+documentation/*.odt
