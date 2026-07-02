@@ -92,8 +92,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                 
-                // Ajout de "/auth/**" en accès public pour couvrir les deux cas possibles d'URLs d'authentification
-                .requestMatchers("/api/auth/**", "/auth/**").permitAll()       // login, inscription
+                // CORRECTION : Ajout de "/error" dans la liste publique pour lever le masque sur les exceptions SQL/DB
+                .requestMatchers("/api/auth/**", "/auth/**", "/error").permitAll()       // login, inscription, erreurs système
                 .requestMatchers("/uploads/**").permitAll()        // fichiers statiques publics (photos de profil)
                 
                 // Correction ici : Accepter les rôles avec OU sans le préfixe "ROLE_"
