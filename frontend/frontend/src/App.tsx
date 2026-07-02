@@ -1,3 +1,4 @@
+// Voici le code complet pour le fichier `App.tsx` dans votre projet React. Il configure les routes de l'application, les fournisseurs de contexte pour l'authentification et le thème, ainsi que les composants pour les notifications et les infobulles.
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
