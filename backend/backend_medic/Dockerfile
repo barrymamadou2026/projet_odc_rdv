@@ -11,4 +11,6 @@ FROM eclipse-temurin:25-jre-alpine
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+
+# AJOUT DES OPTIONS -D POUR LE POOL DE CONNEXION CLEVER CLOUD
+ENTRYPOINT ["java", "-Dspring.datasource.hikari.connection-timeout=30000", "-Dspring.datasource.hikari.maximum-pool-size=5", "-jar", "app.jar"]
