@@ -4,6 +4,7 @@ import com.odc.backend_medic.security.JwtAuthenticationFilter;
 import com.odc.backend_medic.security.RestAccessDeniedHandler;
 import com.odc.backend_medic.security.RestAuthenticationEntryPoint;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -37,6 +38,10 @@ public class SecurityConfig {
     private final RestAuthenticationEntryPoint restAuthenticationEntryPoint;
     private final RestAccessDeniedHandler restAccessDeniedHandler;
 
+    // Récupère l'URL Vercel configurée sur Render. Si elle n'est pas définie, utilise localhost:5173 par défaut.
+    @Value("${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173}")
+    private String allowedOrigin;
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -57,7 +62,14 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(java.util.Arrays.asList("http://localhost:5173", "http://localhost:8080", "http://localhost:8081", "http://localhost:3000"));
+        // Ajout des origines locales et de l'origine dynamique récupérée depuis Render
+        configuration.setAllowedOrigins(java.util.Arrays.asList(
+            "http://localhost:5173", 
+            "http://localhost:8080", 
+            "http://localhost:8081", 
+            "http://localhost:3000",
+            allowedOrigin
+        ));
         configuration.setAllowedMethods(java.util.Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(java.util.Arrays.asList("*"));
         configuration.setAllowCredentials(true);
@@ -79,7 +91,9 @@ public class SecurityConfig {
             )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/api/auth/**").permitAll()       // login, inscription
+                
+                // Ajout de "/auth/**" en accès public pour couvrir les deux cas possibles d'URLs d'authentification
+                .requestMatchers("/api/auth/**", "/auth/**").permitAll()       // login, inscription
                 .requestMatchers("/uploads/**").permitAll()        // fichiers statiques publics (photos de profil)
                 
                 // Correction ici : Accepter les rôles avec OU sans le préfixe "ROLE_"
@@ -91,7 +105,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/consultations/**").hasAnyAuthority("ROLE_MEDECIN", "MEDECIN", "ROLE_PATIENT", "PATIENT")
                 .requestMatchers("/api/rendez-vous/**").hasAnyAuthority("ROLE_MEDECIN", "MEDECIN", "ROLE_PATIENT", "PATIENT")
                 .requestMatchers("/api/notifications/**").hasAnyAuthority("ROLE_MEDECIN", "MEDECIN", "ROLE_PATIENT", "PATIENT", "ROLE_ADMIN", "ADMIN")
-	                .requestMatchers("/api/users/**").authenticated()
+                .requestMatchers("/api/users/**").authenticated()
                 
                 .anyRequest().authenticated()
             )
