@@ -1,6 +1,8 @@
 package com.odc.backend_medic.config;
 
 import com.odc.backend_medic.security.JwtAuthenticationFilter;
+import com.odc.backend_medic.security.RestAccessDeniedHandler;
+import com.odc.backend_medic.security.RestAuthenticationEntryPoint;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -32,6 +34,8 @@ public class SecurityConfig {
 
     private final UserDetailsService userDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final RestAuthenticationEntryPoint restAuthenticationEntryPoint;
+    private final RestAccessDeniedHandler restAccessDeniedHandler;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -69,9 +73,14 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf.disable())
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint(restAuthenticationEntryPoint)   // 401 JSON propre (non authentifié) au lieu du 403 HTML par défaut
+                .accessDeniedHandler(restAccessDeniedHandler)             // 403 JSON propre (rôle insuffisant)
+            )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()       // login, inscription
+                .requestMatchers("/uploads/**").permitAll()        // fichiers statiques publics (photos de profil)
                 
                 // Correction ici : Accepter les rôles avec OU sans le préfixe "ROLE_"
                 .requestMatchers("/api/admin/**").hasAnyAuthority("ROLE_ADMIN", "ADMIN")

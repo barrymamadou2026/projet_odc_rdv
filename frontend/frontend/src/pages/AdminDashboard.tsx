@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, CalendarCheck, AlertTriangle, Plus, Shield, ShieldOff, X, Loader2, LayoutGrid, List } from 'lucide-react';
+import { Users, CalendarCheck, AlertTriangle, Plus, Shield, ShieldOff, X, Loader2, LayoutGrid, List, Stethoscope, Bell, FileText } from 'lucide-react';
 import DashboardShell from '@/components/medic/DashboardShell';
 import DashboardTopbar from '@/components/medic/DashboardTopbar';
 import { adminApi } from '@/lib/api';
@@ -8,6 +8,8 @@ import { toast } from 'sonner';
 interface UserData { idUtilisateur: number; nom: string; prenom: string; email: string; role: string; estActif: boolean; }
 interface AppointmentData { idRendezVous: number; patientNom: string; medecinNom: string; dateHeure: string; statut: string; }
 interface Specialite { idSpecialite: number; nom: string; }
+interface ConsultationData { idConsultation: number; dateConsultation: string; diagnostic: string; notesMedicales?: string; ordonnance?: string; nomMedecin?: string; prenomMedecin?: string; nomPatient?: string; prenomPatient?: string; }
+interface NotificationData { id: number; message: string; dateEnvoi: string; estLu: boolean; type: string; }
 
 const STATUT_STYLES: Record<string, string> = {
   ATTENTE: 'bg-orange-100 text-orange-700',
@@ -20,19 +22,29 @@ const AdminDashboard: React.FC = () => {
   const [users, setUsers] = useState<UserData[]>([]);
   const [appointments, setAppointments] = useState<AppointmentData[]>([]);
   const [specialites, setSpecialites] = useState<Specialite[]>([]);
+  const [consultations, setConsultations] = useState<ConsultationData[]>([]);
+  const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'users' | 'appointments'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'appointments' | 'consultations' | 'notifications'>('users');
   const [form, setForm] = useState({ nom: '', prenom: '', email: '', password: '', idSpecialite: '', telephone: '', adresse: '' });
   const [creating, setCreating] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [u, a, s] = await Promise.all([adminApi.getUsers(), adminApi.getAllAppointments(), adminApi.getSpecialites()]);
+      const [u, a, s, c, n] = await Promise.all([
+        adminApi.getUsers(),
+        adminApi.getAllAppointments(),
+        adminApi.getSpecialites(),
+        adminApi.getAllConsultations(),
+        adminApi.getAllNotifications(),
+      ]);
       setUsers(u as UserData[]);
       setAppointments(a as AppointmentData[]);
       setSpecialites(s as Specialite[]);
+      setConsultations(c as ConsultationData[]);
+      setNotifications(n as NotificationData[]);
     } catch { toast.error("Erreur lors du chargement des données"); }
     finally { setLoading(false); }
   };
@@ -69,6 +81,13 @@ const AdminDashboard: React.FC = () => {
     { icon: AlertTriangle, label: 'En Attente',     value: appointments.filter(a => ['ATTENTE','EN_ATTENTE'].includes(a.statut)).length, color: 'bg-orange-50', iconColor: 'text-orange-500' },
   ];
 
+  const TABS = [
+    { key: 'users' as const,         label: 'Utilisateurs',   icon: LayoutGrid },
+    { key: 'appointments' as const,  label: 'Rendez-vous',    icon: List },
+    { key: 'consultations' as const, label: 'Consultations',  icon: Stethoscope },
+    { key: 'notifications' as const, label: 'Notifications',  icon: Bell },
+  ];
+
   return (
     <DashboardShell active="Dashboard">
       <DashboardTopbar title="Tableau de Bord Admin" rightLabel="Admin Console" />
@@ -86,16 +105,16 @@ const AdminDashboard: React.FC = () => {
         ))}
       </div>
 
-      {/* Tabs */}
+      {/* Tabs — Supervision totale : Utilisateurs / RDV / Consultations / Notifications */}
       <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm">
         <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-          <div className="flex gap-2 bg-gray-100 rounded-xl p-1">
-            <button onClick={() => setActiveTab('users')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'users' ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}>
-              <LayoutGrid className="w-4 h-4" /> Utilisateurs
-            </button>
-            <button onClick={() => setActiveTab('appointments')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'appointments' ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}>
-              <List className="w-4 h-4" /> Rendez-vous
-            </button>
+          <div className="flex gap-1 bg-gray-100 rounded-xl p-1 overflow-x-auto">
+            {TABS.map(tab => (
+              <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === tab.key ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}>
+                <tab.icon className="w-4 h-4" /> {tab.label}
+              </button>
+            ))}
           </div>
           {activeTab === 'users' && (
             <button onClick={() => setShowModal(true)} className="px-4 py-2 rounded-xl bg-orange-500 text-white font-bold flex items-center gap-2 hover:bg-orange-600 transition-colors shadow-sm">
@@ -143,7 +162,7 @@ const AdminDashboard: React.FC = () => {
               </tbody>
             </table>
           </div>
-        ) : (
+        ) : activeTab === 'appointments' ? (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="text-xs text-gray-400 uppercase border-b border-gray-100">
@@ -168,6 +187,54 @@ const AdminDashboard: React.FC = () => {
               </tbody>
             </table>
           </div>
+        ) : activeTab === 'consultations' ? (
+          consultations.length === 0 ? (
+            <div className="py-16 text-center text-gray-400">
+              <Stethoscope className="w-10 h-10 mx-auto mb-3 opacity-30" />
+              Aucune consultation enregistrée sur la plateforme
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {consultations.map(c => (
+                <div key={c.idConsultation} className="flex items-start gap-4 p-4 rounded-2xl border border-gray-100 hover:bg-gray-50 transition-colors">
+                  <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+                    <Stethoscope className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-gray-900">{c.diagnostic || 'Consultation générale'}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Dr. {c.prenomMedecin} {c.nomMedecin} → Patient {c.prenomPatient} {c.nomPatient}
+                    </p>
+                    {c.ordonnance && (
+                      <div className="mt-1.5 inline-flex items-center gap-1 bg-green-50 text-green-700 px-2.5 py-0.5 rounded-full text-xs font-semibold">
+                        <FileText className="w-3 h-3" /> Ordonnance délivrée
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs font-semibold text-gray-500 shrink-0">{c.dateConsultation ? new Date(c.dateConsultation).toLocaleDateString('fr-FR') : '–'}</p>
+                </div>
+              ))}
+            </div>
+          )
+        ) : (
+          notifications.length === 0 ? (
+            <div className="py-16 text-center text-gray-400">
+              <Bell className="w-10 h-10 mx-auto mb-3 opacity-30" />
+              Aucune notification envoyée
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {notifications.map(n => (
+                <div key={n.id} className={`flex items-center gap-3 p-3 rounded-xl border ${n.estLu ? 'border-gray-100 bg-white' : 'border-orange-100 bg-orange-50/50'}`}>
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${n.estLu ? 'bg-gray-300' : 'bg-orange-500'}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-800 truncate">{n.message}</p>
+                    <p className="text-xs text-gray-400">{n.type} · {n.dateEnvoi ? new Date(n.dateEnvoi).toLocaleString('fr-FR') : ''}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
         )}
       </div>
 

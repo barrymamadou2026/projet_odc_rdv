@@ -1,17 +1,22 @@
 package com.odc.backend_medic.service;
 
+import com.odc.backend_medic.dto.ConsultationResponse;
 import com.odc.backend_medic.dto.CreateMedecinRequest;
+import com.odc.backend_medic.dto.NotificationResponse;
 import com.odc.backend_medic.dto.RendezVousResponse;
 import com.odc.backend_medic.dto.UserResponse;
 import com.odc.backend_medic.models.Medecin;
 import com.odc.backend_medic.models.Specialite;
 import com.odc.backend_medic.models.User;
 import com.odc.backend_medic.models.enumeration.Role;
+import com.odc.backend_medic.repository.ConsultationRepository;
 import com.odc.backend_medic.repository.MedecinRepository;
+import com.odc.backend_medic.repository.NotificationRepository;
 import com.odc.backend_medic.repository.RendezVousRepository;
 import com.odc.backend_medic.repository.SpecialiteRepository;
 import com.odc.backend_medic.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +32,8 @@ public class AdminService {
     private final MedecinRepository medecinRepository;
     private final SpecialiteRepository specialiteRepository;
     private final RendezVousRepository rendezVousRepository;
+    private final ConsultationRepository consultationRepository;
+    private final NotificationRepository notificationRepository;
     private final PasswordEncoder passwordEncoder;
 
     public List<UserResponse> getAllUsers() {
@@ -84,5 +91,25 @@ public class AdminService {
 
     public List<Specialite> getAllSpecialites() {
         return specialiteRepository.findAll();
+    }
+
+    /**
+     * Supervision totale : visibilité admin à 360° sur l'ensemble
+     * des fiches de consultation de la structure (diagnostics, ordonnances).
+     */
+    public List<ConsultationResponse> getAllConsultations() {
+        return consultationRepository.findAll().stream()
+                .map(ConsultationResponse::fromEntity)
+                .toList();
+    }
+
+    /**
+     * Supervision totale : visibilité admin sur l'ensemble du flux
+     * de notifications envoyées à tous les utilisateurs de la plateforme.
+     */
+    public List<NotificationResponse> getAllNotifications() {
+        return notificationRepository.findAll(Sort.by(Sort.Direction.DESC, "dateEnvoi")).stream()
+                .map(NotificationResponse::fromEntity)
+                .toList();
     }
 }

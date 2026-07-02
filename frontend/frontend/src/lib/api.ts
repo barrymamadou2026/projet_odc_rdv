@@ -29,6 +29,14 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   };
   const response = await fetch(url, { ...options, headers });
   if (!response.ok) {
+    // 401 = session expirée/invalide : on nettoie le token et on renvoie au login
+    // plutôt que de laisser l'utilisateur face à des appels qui échouent en boucle.
+    if (response.status === 401 && token) {
+      removeToken();
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
+    }
     let message = `Erreur HTTP ${response.status}`;
     try { const err = await response.json(); message = err.message || err.error || message; } catch (_) {}
     throw new Error(message);
@@ -105,6 +113,8 @@ export const adminApi = {
   deactivateUser: (id: number) => request<any>(`/admin/users/${id}/desactiver`, { method: 'PATCH' }),
   getAllAppointments: () => request<any[]>('/admin/rendez-vous'),
   getSpecialites: () => request<any[]>('/admin/specialites'),
+  getAllConsultations: () => request<any[]>('/admin/consultations'),
+  getAllNotifications: () => request<any[]>('/admin/notifications'),
 };
 
 export const notificationApi = {

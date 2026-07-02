@@ -1,6 +1,8 @@
 package com.odc.backend_medic.controller;
 
+import com.odc.backend_medic.dto.ConsultationResponse;
 import com.odc.backend_medic.dto.CreateMedecinRequest;
+import com.odc.backend_medic.dto.NotificationResponse;
 import com.odc.backend_medic.dto.RendezVousResponse;
 import com.odc.backend_medic.dto.UserResponse;
 import com.odc.backend_medic.service.AdminService;
@@ -53,5 +55,17 @@ public class AdminController {
     @GetMapping("/specialites")
     public ResponseEntity<List<com.odc.backend_medic.models.Specialite>> getAllSpecialites() {
         return ResponseEntity.ok(adminService.getAllSpecialites());
+    }
+
+    /** Supervision totale (exigence cahier des charges) : toutes les consultations de la plateforme. */
+    @GetMapping("/consultations")
+    public List<ConsultationResponse> toutesLesConsultations() {
+        return adminService.getAllConsultations();
+    }
+
+    /** Supervision totale (exigence cahier des charges) : toutes les notifications envoyées. */
+    @GetMapping("/notifications")
+    public List<NotificationResponse> toutesLesNotifications() {
+        return adminService.getAllNotifications();
     }
 }

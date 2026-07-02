@@ -28,9 +28,13 @@ public class UserController {
     }
 
     @PutMapping("/profile")
-    public ResponseEntity<User> updateProfile(Authentication authentication, @Valid @RequestBody UserProfileUpdateRequest request) {
-        User updatedUser = userService.updateProfile(authentication.getName(), request);
-        return ResponseEntity.ok(updatedUser);
+    public ResponseEntity<?> updateProfile(Authentication authentication, @Valid @RequestBody UserProfileUpdateRequest request) {
+        try {
+            User updatedUser = userService.updateProfile(authentication.getName(), request);
+            return ResponseEntity.ok(updatedUser);
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
     }
 
     @PatchMapping("/change-password")
@@ -48,6 +52,8 @@ public class UserController {
         try {
             String imageUrl = userService.uploadProfileImage(authentication.getName(), file);
             return ResponseEntity.ok(imageUrl);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         } catch (IOException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Erreur lors du téléchargement de l'image: " + e.getMessage());
         }
