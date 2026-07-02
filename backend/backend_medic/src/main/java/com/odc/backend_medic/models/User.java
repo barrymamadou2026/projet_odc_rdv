@@ -41,7 +41,7 @@ public class User {
 
     // Mapping direct sur la nouvelle colonne 'role' (VARCHAR)
     @Enumerated(EnumType.STRING)
-    @Column(name = "role", nullable = false, length = 20)
+    @Column(name = "id_role", nullable = false, length = 20)
     private Role role;
 
     @Builder.Default
