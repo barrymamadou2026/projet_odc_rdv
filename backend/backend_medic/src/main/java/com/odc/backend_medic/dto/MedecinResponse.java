@@ -19,6 +19,11 @@ public class MedecinResponse {
     private String specialite;
     private String telephone;
     private String adresse;
+    private Double latitude;
+    private Double longitude;
+
+    /** Renseigné uniquement par l'endpoint "médecins à proximité". */
+    private Double distanceKm;
 
     public static MedecinResponse fromEntity(Medecin m) {
         return MedecinResponse.builder()
@@ -30,6 +35,8 @@ public class MedecinResponse {
                 .specialite(m.getSpecialite() != null ? m.getSpecialite().getNom() : null)
                 .telephone(m.getTelephone())
                 .adresse(m.getAdresse())
+                .latitude(m.getLatitude())
+                .longitude(m.getLongitude())
                 .build();
     }
 }

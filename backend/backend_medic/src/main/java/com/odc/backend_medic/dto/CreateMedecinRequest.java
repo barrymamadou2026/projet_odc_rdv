@@ -31,4 +31,8 @@ public class CreateMedecinRequest {
 
     private String telephone;
     private String adresse;
+
+    /** Optionnel : si non fournies, elles seront déduites automatiquement de l'adresse (géocodage). */
+    private Double latitude;
+    private Double longitude;
 }

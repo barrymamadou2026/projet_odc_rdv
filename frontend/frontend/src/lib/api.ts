@@ -82,6 +82,8 @@ export const authApi = {
 
 export const patientApi = {
   getAllDoctors: () => request<any[]>('/patient/medecins'),
+  getNearbyDoctors: (lat: number, lng: number, rayonKm = 50) =>
+    request<any[]>(`/patient/medecins/proches?lat=${lat}&lng=${lng}&rayonKm=${rayonKm}`),
   getDisponibilites: () => request<any[]>('/patient/disponibilites'),
   getDoctorDisponibilites: async (idMedecin: number): Promise<any[]> => {
     const all = await patientApi.getDisponibilites();

@@ -131,4 +131,24 @@ public class PatientService {
                 .map(com.odc.backend_medic.dto.MedecinResponse::fromEntity)
                 .toList();
     }
+
+    /**
+     * Médecins/hôpitaux les plus proches d'une position GPS donnée (utile pour
+     * les patients étrangers ou de passage qui ne connaissent pas les structures
+     * locales). Ne renvoie que les médecins dont l'adresse a pu être géolocalisée,
+     * triés du plus proche au plus loin, dans un rayon donné (par défaut 50 km).
+     */
+    public List<com.odc.backend_medic.dto.MedecinResponse> getMedecinsProches(double lat, double lng, double rayonKm) {
+        return medecinRepository.findAll().stream()
+                .filter(m -> m.getLatitude() != null && m.getLongitude() != null)
+                .map(m -> {
+                    double distance = GeocodingService.distanceKm(lat, lng, m.getLatitude(), m.getLongitude());
+                    com.odc.backend_medic.dto.MedecinResponse dto = com.odc.backend_medic.dto.MedecinResponse.fromEntity(m);
+                    dto.setDistanceKm(Math.round(distance * 10.0) / 10.0);
+                    return dto;
+                })
+                .filter(dto -> dto.getDistanceKm() <= rayonKm)
+                .sorted(java.util.Comparator.comparingDouble(com.odc.backend_medic.dto.MedecinResponse::getDistanceKm))
+                .toList();
+    }
 }

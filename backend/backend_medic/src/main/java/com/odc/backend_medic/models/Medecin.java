@@ -40,6 +40,13 @@ public class Medecin {
     @Column(name = "adresse", columnDefinition = "TEXT")
     private String adresse;
 
+    /** Coordonnées GPS du cabinet/hôpital — permet la recherche "à proximité". */
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
+
     // Relations déplacées depuis User vers Medecin
     @JsonIgnore
     @OneToMany(mappedBy = "medecin", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)

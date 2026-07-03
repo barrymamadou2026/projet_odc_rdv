@@ -66,4 +66,20 @@ public class PatientController {
     public List<com.odc.backend_medic.dto.MedecinResponse> tousLesMedecins() {
         return patientService.getAllMedecins();
     }
+
+    /**
+     * Médecins/hôpitaux les plus proches d'une position GPS (patient étranger ou
+     * simplement non familier de la ville). lat/lng viennent de la géolocalisation
+     * navigateur du patient ; rayonKm est optionnel (50 km par défaut).
+     */
+    @GetMapping("/medecins/proches")
+    public ResponseEntity<List<com.odc.backend_medic.dto.MedecinResponse>> medecinsProches(
+            @RequestParam("lat") double lat,
+            @RequestParam("lng") double lng,
+            @RequestParam(value = "rayonKm", required = false, defaultValue = "50") double rayonKm) {
+        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+            return ResponseEntity.badRequest().build();
+        }
+        return ResponseEntity.ok(patientService.getMedecinsProches(lat, lng, rayonKm));
+    }
 }

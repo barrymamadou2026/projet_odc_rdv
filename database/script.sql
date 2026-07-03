@@ -192,3 +192,11 @@ ALTER TABLE rendez_vous
     ADD COLUMN annule_par VARCHAR(20) NULL COMMENT 'PATIENT ou MEDECIN',
     ADD COLUMN motif_annulation TEXT NULL,
     ADD COLUMN date_annulation DATETIME NULL;
+
+-- ============================================================
+-- MIGRATION : geolocalisation des medecins/hopitaux
+-- (recherche "a proximite" pour patients etrangers ou de passage)
+-- ============================================================
+ALTER TABLE medecins
+    ADD COLUMN latitude DOUBLE NULL,
+    ADD COLUMN longitude DOUBLE NULL;

@@ -35,6 +35,7 @@ public class AdminService {
     private final ConsultationRepository consultationRepository;
     private final NotificationRepository notificationRepository;
     private final PasswordEncoder passwordEncoder;
+    private final GeocodingService geocodingService;
 
     public List<UserResponse> getAllUsers() {
         return userRepository.findAll().stream()
@@ -58,15 +59,32 @@ public class AdminService {
                 .password(passwordEncoder.encode(request.getPassword()))
                 .role(Role.MEDECIN)
                 .estActif(true)
+                // Compte créé directement par l'admin (vérifié manuellement) :
+                // pas besoin du parcours de double opt-in réservé aux patients.
+                .emailVerifie(true)
                 .build();
 
         User savedUser = userRepository.save(user);
+
+        Double latitude = request.getLatitude();
+        Double longitude = request.getLongitude();
+        if ((latitude == null || longitude == null) && request.getAdresse() != null && !request.getAdresse().isBlank()) {
+            latitude = null;
+            longitude = null;
+            var coords = geocodingService.geocoder(request.getAdresse());
+            if (coords.isPresent()) {
+                latitude = coords.get().latitude();
+                longitude = coords.get().longitude();
+            }
+        }
 
         Medecin medecin = Medecin.builder()
                 .user(savedUser)
                 .specialite(specialite)
                 .telephone(request.getTelephone())
                 .adresse(request.getAdresse())
+                .latitude(latitude)
+                .longitude(longitude)
                 .build();
 
         medecinRepository.save(medecin);
