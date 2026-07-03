@@ -22,7 +22,7 @@ public class MedecinService {
     private final DisponibiliteRepository disponibiliteRepository;
     private final RendezVousRepository rendezVousRepository;
     private final ConsultationRepository consultationRepository;
-    private final NotificationRepository notificationRepository;
+    private final AppointmentNotifier appointmentNotifier;
 
     public Medecin getAuthenticatedMedecin(String email) {
         return medecinRepository.findByUser_Email(email)
@@ -66,35 +66,49 @@ public class MedecinService {
                 .toList();
     }
 
+    /**
+     * Le médecin confirme ou annule un rendez-vous. Une annulation peut se
+     * faire à tout moment (aucune contrainte de délai), et notifie le patient
+     * immédiatement (in-app + email + SMS).
+     */
     @Transactional
-    public Optional<RendezVousResponse> changerStatutRdv(Medecin medecin, Long idRdv, StatutRendezVous statut) {
+    public Optional<RendezVousResponse> changerStatutRdv(Medecin medecin, Long idRdv, StatutRendezVous statut, String motif) {
         return rendezVousRepository.findById(idRdv)
                 .filter(rdv -> rdv.getDisponibilite().getMedecin().getIdMedecin().equals(medecin.getIdMedecin()))
+                .filter(rdv -> rdv.getStatut() != StatutRendezVous.ANNULE) // pas de double-annulation
                 .map(rdv -> {
                     rdv.setStatut(statut);
+
                     // Si annulé, on peut libérer à nouveau la disponibilité associée
                     if (statut == StatutRendezVous.ANNULE) {
                         rdv.getDisponibilite().setEstLibre(true);
                         disponibiliteRepository.save(rdv.getDisponibilite());
+                        rdv.setAnnulePar("MEDECIN");
+                        rdv.setMotifAnnulation(motif);
+                        rdv.setDateAnnulation(LocalDateTime.now());
                     }
-                    
+
                     RendezVous savedRdv = rendezVousRepository.save(rdv);
-                    
-                    // Création d'une notification pour le patient
-                    String message = String.format("Votre rendez-vous du %s avec le Dr. %s est désormais %s.",
-                            savedRdv.getDateHeure().toString(),
-                            medecin.getUser().getNom(),
-                            statut.name().toLowerCase());
-                            
-                    Notification notification = Notification.builder()
-                            .message(message)
-                            .user(savedRdv.getPatient().getUser())
-                            .type(statut == StatutRendezVous.CONFIRME ? "INFO" : "ALERTE")
-                            .dateEnvoi(LocalDateTime.now())
-                            .estLu(false)
-                            .build();
-                    notificationRepository.save(notification);
-                    
+
+                    String message;
+                    if (statut == StatutRendezVous.CONFIRME) {
+                        message = String.format("Votre rendez-vous du %s avec le Dr. %s %s est confirmé.",
+                                AppointmentNotifier.formatDate(savedRdv.getDateHeure()),
+                                medecin.getUser().getPrenom(), medecin.getUser().getNom());
+                    } else {
+                        message = String.format("Le Dr. %s %s a annulé votre rendez-vous du %s.%s",
+                                medecin.getUser().getPrenom(), medecin.getUser().getNom(),
+                                AppointmentNotifier.formatDate(savedRdv.getDateHeure()),
+                                (motif != null && !motif.isBlank()) ? " Motif : " + motif : "");
+                    }
+
+                    appointmentNotifier.notifier(
+                            savedRdv.getPatient().getUser(),
+                            message,
+                            statut == StatutRendezVous.CONFIRME ? "Rendez-vous confirmé" : "Rendez-vous annulé par le médecin",
+                            statut == StatutRendezVous.CONFIRME ? "INFO" : "ALERTE",
+                            savedRdv.getPatient().getTelephone());
+
                     return RendezVousResponse.fromEntity(savedRdv);
                 });
     }

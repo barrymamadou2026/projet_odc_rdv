@@ -4,15 +4,18 @@ import com.odc.backend_medic.dto.AdminLoginRequest;
 import com.odc.backend_medic.dto.AuthResponse;
 import com.odc.backend_medic.dto.LoginRequest;
 import com.odc.backend_medic.dto.RegisterRequest;
+import com.odc.backend_medic.models.EmailVerificationToken;
 import com.odc.backend_medic.models.Patient;
+import com.odc.backend_medic.models.PasswordResetToken;
 import com.odc.backend_medic.models.User;
 import com.odc.backend_medic.models.enumeration.Role;
+import com.odc.backend_medic.repository.EmailVerificationTokenRepository;
+import com.odc.backend_medic.repository.PasswordResetTokenRepository;
 import com.odc.backend_medic.repository.PatientRepository;
 import com.odc.backend_medic.repository.UserRepository;
-import com.odc.backend_medic.repository.PasswordResetTokenRepository;
-import com.odc.backend_medic.models.PasswordResetToken;
 import com.odc.backend_medic.security.JwtService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -23,12 +26,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthService {
+
+    private static final int MAX_FAILED_ATTEMPTS = 5;
+    private static final int LOCK_DURATION_MINUTES = 15;
 
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
@@ -36,9 +44,66 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final EmailVerificationTokenRepository emailVerificationTokenRepository;
+    private final EmailDomainValidator emailDomainValidator;
+    private final EmailService emailService;
 
     @Value("${app.admin.secret-key}")
     private String adminSecretKey;
+
+    @Value("${app.frontend-url:http://localhost:5173}")
+    private String frontendUrl;
+
+    @Value("${app.base-url:http://localhost:8080}")
+    private String backendUrl;
+
+    // ---------------------------------------------------------------------
+    // Vérification d'email (double opt-in)
+    // ---------------------------------------------------------------------
+
+    @Transactional
+    public void sendVerificationEmail(User user) {
+        emailVerificationTokenRepository.deleteByUser(user);
+
+        String token = UUID.randomUUID().toString();
+        EmailVerificationToken verificationToken = EmailVerificationToken.builder()
+                .token(token)
+                .user(user)
+                .expiryDate(LocalDateTime.now().plusHours(24))
+                .build();
+        emailVerificationTokenRepository.save(verificationToken);
+
+        String verificationLink = backendUrl + "/api/auth/verify-email?token=" + token;
+        emailService.sendVerificationEmail(user.getEmail(), user.getPrenom(), verificationLink);
+    }
+
+    @Transactional
+    public boolean verifyEmail(String token) {
+        return emailVerificationTokenRepository.findByToken(token)
+                .filter(t -> t.getExpiryDate().isAfter(LocalDateTime.now()))
+                .map(t -> {
+                    User user = t.getUser();
+                    user.setEmailVerifie(true);
+                    userRepository.save(user);
+                    emailVerificationTokenRepository.delete(t);
+                    return true;
+                })
+                .orElse(false);
+    }
+
+    @Transactional
+    public void resendVerificationEmail(String email) {
+        userRepository.findByEmail(email).ifPresent(user -> {
+            if (!user.isEmailVerifie()) {
+                sendVerificationEmail(user);
+            }
+        });
+        // Réponse volontairement identique que le compte existe ou non (anti-énumération d'emails).
+    }
+
+    // ---------------------------------------------------------------------
+    // Mot de passe oublié
+    // ---------------------------------------------------------------------
 
     @Transactional
     public void requestPasswordReset(String email) {
@@ -56,8 +121,8 @@ public class AuthService {
                 .build();
         passwordResetTokenRepository.save(resetToken);
 
-        // Envoyer un email à l'utilisateur avec le lien de réinitialisation contenant le token
-        System.out.println("Password reset token for " + email + ": " + token);
+        String resetLink = frontendUrl + "/reset-password?token=" + token;
+        emailService.sendPasswordResetEmail(email, resetLink);
     }
 
     @Transactional
@@ -72,15 +137,29 @@ public class AuthService {
 
         User user = resetToken.getUser();
         user.setPassword(passwordEncoder.encode(newPassword));
+        // Une réinitialisation de mot de passe volontaire lève aussi un éventuel verrouillage.
+        user.setFailedLoginAttempts(0);
+        user.setLockedUntil(null);
         userRepository.save(user);
 
         passwordResetTokenRepository.delete(resetToken);
     }
 
+    // ---------------------------------------------------------------------
+    // Inscription
+    // ---------------------------------------------------------------------
+
     @Transactional
     public AuthResponse registerPatient(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new IllegalArgumentException("Cet email est déjà utilisé");
+        }
+
+        // Vérification DNS (MX) : rejette immédiatement les domaines inexistants
+        // ou les fautes de frappe évidentes, avant même de créer le compte.
+        if (!emailDomainValidator.domaineAcceptable(request.getEmail())) {
+            throw new IllegalArgumentException(
+                    "Cette adresse email semble invalide ou son domaine n'existe pas. Vérifiez l'orthographe.");
         }
 
         User user = User.builder()
@@ -90,6 +169,7 @@ public class AuthService {
                 .password(passwordEncoder.encode(request.getPassword()))
                 .role(Role.PATIENT)
                 .estActif(true)
+                .emailVerifie(false)
                 .build();
 
         User savedUser = userRepository.save(user);
@@ -103,20 +183,49 @@ public class AuthService {
 
         patientRepository.save(patient);
 
+        sendVerificationEmail(savedUser);
+
+        // Le compte est utilisable immédiatement (bon pour l'UX), mais toute
+        // reconnexion future exigera un email vérifié (voir authenticateUser).
         String token = buildToken(savedUser);
         return toAuthResponse(savedUser, token);
     }
 
-    public AuthResponse authenticateUser(LoginRequest request) {
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
+    // ---------------------------------------------------------------------
+    // Connexion (avec verrouillage anti-bruteforce + email vérifié requis)
+    // ---------------------------------------------------------------------
 
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new BadCredentialsException("Identifiants invalides"));
+    public AuthResponse authenticateUser(LoginRequest request) {
+        User user = userRepository.findByEmail(request.getEmail()).orElse(null);
+
+        if (user != null && user.getLockedUntil() != null && user.getLockedUntil().isAfter(LocalDateTime.now())) {
+            String until = user.getLockedUntil().format(DateTimeFormatter.ofPattern("HH:mm"));
+            throw new BadCredentialsException(
+                    "Compte temporairement verrouillé suite à plusieurs tentatives échouées. Réessayez après " + until + ".");
+        }
+
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
+        } catch (BadCredentialsException e) {
+            registerFailedAttempt(user);
+            throw new BadCredentialsException("Identifiants invalides");
+        }
+
+        if (user == null) {
+            throw new BadCredentialsException("Identifiants invalides");
+        }
 
         if (user.getRole() == Role.ADMIN) {
             throw new BadCredentialsException("Accès refusé.");
         }
+
+        if (!user.isEmailVerifie()) {
+            throw new BadCredentialsException(
+                    "Veuillez confirmer votre adresse email avant de vous connecter. Consultez votre boîte de réception.");
+        }
+
+        resetFailedAttempts(user);
 
         String token = buildToken(user);
         return toAuthResponse(user, token);
@@ -127,18 +236,48 @@ public class AuthService {
             throw new BadCredentialsException("Clé secrète invalide.");
         }
 
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
+        User user = userRepository.findByEmail(request.getEmail()).orElse(null);
 
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new BadCredentialsException("Identifiants invalides"));
+        if (user != null && user.getLockedUntil() != null && user.getLockedUntil().isAfter(LocalDateTime.now())) {
+            throw new BadCredentialsException("Compte temporairement verrouillé suite à plusieurs tentatives échouées.");
+        }
 
-        if (user.getRole() != Role.ADMIN) {
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
+        } catch (BadCredentialsException e) {
+            registerFailedAttempt(user);
+            throw new BadCredentialsException("Identifiants invalides");
+        }
+
+        if (user == null || user.getRole() != Role.ADMIN) {
             throw new BadCredentialsException("Accès refusé.");
         }
 
+        resetFailedAttempts(user);
+
         String token = buildToken(user);
         return toAuthResponse(user, token);
+    }
+
+    private void registerFailedAttempt(User user) {
+        if (user == null) {
+            return; // Ne rien révéler si l'email n'existe pas
+        }
+        user.setFailedLoginAttempts(user.getFailedLoginAttempts() + 1);
+        if (user.getFailedLoginAttempts() >= MAX_FAILED_ATTEMPTS) {
+            user.setLockedUntil(LocalDateTime.now().plusMinutes(LOCK_DURATION_MINUTES));
+            log.warn("Compte verrouillé après {} tentatives échouées : {}", MAX_FAILED_ATTEMPTS, user.getEmail());
+        }
+        userRepository.save(user);
+    }
+
+    private void resetFailedAttempts(User user) {
+        if (user.getFailedLoginAttempts() != 0 || user.getLockedUntil() != null) {
+            user.setFailedLoginAttempts(0);
+            user.setLockedUntil(null);
+            userRepository.save(user);
+        }
     }
 
     private String buildToken(User user) {
@@ -156,6 +295,7 @@ public class AuthService {
                 .token(token)
                 .role(user.getRole().name())
                 .email(user.getEmail())
+                .emailVerifie(user.isEmailVerifie())
                 .build();
     }
 }

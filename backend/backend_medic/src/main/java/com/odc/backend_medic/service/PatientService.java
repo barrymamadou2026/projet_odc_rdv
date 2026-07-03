@@ -5,6 +5,7 @@ import com.odc.backend_medic.dto.ConsultationResponse;
 import com.odc.backend_medic.dto.DisponibiliteResponse;
 import com.odc.backend_medic.dto.RendezVousResponse;
 import com.odc.backend_medic.models.Disponibilite;
+import com.odc.backend_medic.models.Medecin;
 import com.odc.backend_medic.models.Patient;
 import com.odc.backend_medic.models.RendezVous;
 import com.odc.backend_medic.models.enumeration.StatutRendezVous;
@@ -27,6 +28,7 @@ public class PatientService {
     private final RendezVousRepository rendezVousRepository;
     private final ConsultationRepository consultationRepository;
     private final MedecinRepository medecinRepository;
+    private final AppointmentNotifier appointmentNotifier;
 
     public Patient getAuthenticatedPatient(String email) {
         return patientRepository.findByUser_Email(email)
@@ -63,7 +65,17 @@ public class PatientService {
                 .disponibilite(dispo)
                 .build();
 
-        return Optional.of(RendezVousResponse.fromEntity(rendezVousRepository.save(rdv)));
+        RendezVous savedRdv = rendezVousRepository.save(rdv);
+
+        // Le médecin est notifié en temps réel d'une nouvelle demande de rendez-vous.
+        Medecin medecin = dispo.getMedecin();
+        String message = String.format("Nouvelle demande de rendez-vous le %s de la part de %s %s.",
+                AppointmentNotifier.formatDate(savedRdv.getDateHeure()),
+                patient.getUser().getPrenom(), patient.getUser().getNom());
+        appointmentNotifier.notifier(medecin.getUser(), message, "Nouvelle demande de rendez-vous",
+                "INFO", medecin.getTelephone());
+
+        return Optional.of(RendezVousResponse.fromEntity(savedRdv));
     }
 
     public List<RendezVousResponse> getMesRendezVous(Long idPatient) {
@@ -72,19 +84,39 @@ public class PatientService {
                 .toList();
     }
 
+    /**
+     * Le patient peut annuler son rendez-vous à tout moment, tant qu'il n'est
+     * pas déjà annulé. Le médecin concerné est notifié immédiatement
+     * (in-app + email + SMS).
+     */
     @Transactional
-    public Optional<RendezVousResponse> annulerRendezVous(Patient patient, Long idRdv) {
+    public Optional<RendezVousResponse> annulerRendezVous(Patient patient, Long idRdv, String motif) {
         return rendezVousRepository.findById(idRdv)
                 .filter(rdv -> rdv.getPatient().getIdPatient().equals(patient.getIdPatient()))
+                .filter(rdv -> rdv.getStatut() != StatutRendezVous.ANNULE)
                 .map(rdv -> {
                     rdv.setStatut(StatutRendezVous.ANNULE);
-                    
+                    rdv.setAnnulePar("PATIENT");
+                    rdv.setMotifAnnulation(motif);
+                    rdv.setDateAnnulation(LocalDateTime.now());
+
                     // Libérer la disponibilité liée
                     Disponibilite dispo = rdv.getDisponibilite();
                     dispo.setEstLibre(true);
                     disponibiliteRepository.save(dispo);
 
-                    return RendezVousResponse.fromEntity(rendezVousRepository.save(rdv));
+                    RendezVous savedRdv = rendezVousRepository.save(rdv);
+
+                    Medecin medecin = dispo.getMedecin();
+                    String message = String.format(
+                            "%s %s a annulé son rendez-vous du %s.%s",
+                            patient.getUser().getPrenom(), patient.getUser().getNom(),
+                            AppointmentNotifier.formatDate(savedRdv.getDateHeure()),
+                            (motif != null && !motif.isBlank()) ? " Motif : " + motif : "");
+                    appointmentNotifier.notifier(medecin.getUser(), message, "Rendez-vous annulé par le patient",
+                            "ALERTE", medecin.getTelephone());
+
+                    return RendezVousResponse.fromEntity(savedRdv);
                 });
     }
 

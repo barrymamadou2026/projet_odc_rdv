@@ -43,15 +43,19 @@ public class MedecinController {
     @PatchMapping("/rendez-vous/{id}/confirmer")
     public ResponseEntity<RendezVousResponse> confirmer(Authentication authentication, @PathVariable("id") Long idRdv) {
         Medecin medecin = medecinService.getAuthenticatedMedecin(authentication.getName());
-        return medecinService.changerStatutRdv(medecin, idRdv, StatutRendezVous.CONFIRME)
+        return medecinService.changerStatutRdv(medecin, idRdv, StatutRendezVous.CONFIRME, null)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    /** Le médecin peut annuler un rendez-vous à tout moment, comme le patient. */
     @PatchMapping("/rendez-vous/{id}/annuler")
-    public ResponseEntity<RendezVousResponse> annuler(Authentication authentication, @PathVariable("id") Long idRdv) {
+    public ResponseEntity<RendezVousResponse> annuler(
+            Authentication authentication,
+            @PathVariable("id") Long idRdv,
+            @RequestParam(value = "motif", required = false) String motif) {
         Medecin medecin = medecinService.getAuthenticatedMedecin(authentication.getName());
-        return medecinService.changerStatutRdv(medecin, idRdv, StatutRendezVous.ANNULE)
+        return medecinService.changerStatutRdv(medecin, idRdv, StatutRendezVous.ANNULE, motif)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }

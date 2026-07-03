@@ -46,7 +46,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   return response.text() as unknown as T;
 }
 
-export interface AuthResponse { token: string; role: string; email: string; }
+export interface AuthResponse { token: string; role: string; email: string; emailVerifie?: boolean; }
 export interface LoginRequest { email: string; password: string; }
 export interface AdminLoginRequest { email: string; password: string; secretKey: string; }
 export interface RegisterRequest { nom: string; prenom: string; email: string; password: string; telephone: string; adresse?: string; antecedentsMedicaux?: string; }
@@ -73,6 +73,7 @@ export const authApi = {
     return res;
   },
   forgotPassword: (data: ForgotPasswordRequest) => request<string>('/auth/forgot-password', { method: 'POST', body: JSON.stringify(data) }),
+  resendVerification: (data: ForgotPasswordRequest) => request<string>('/auth/resend-verification', { method: 'POST', body: JSON.stringify(data) }),
   resetPassword: (data: ResetPasswordRequest) => request<string>('/auth/reset-password', { method: 'POST', body: JSON.stringify(data) }),
   logout: (): void => removeToken(),
   getToken,

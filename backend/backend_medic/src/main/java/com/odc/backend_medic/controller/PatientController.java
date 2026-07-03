@@ -40,9 +40,12 @@ public class PatientController {
     }
 
     @PatchMapping("/rendez-vous/{id}/annuler")
-    public ResponseEntity<RendezVousResponse> annuler(Authentication authentication, @PathVariable("id") Long idRdv) {
+    public ResponseEntity<RendezVousResponse> annuler(
+            Authentication authentication,
+            @PathVariable("id") Long idRdv,
+            @RequestParam(value = "motif", required = false) String motif) {
         Patient patient = patientService.getAuthenticatedPatient(authentication.getName());
-        return patientService.annulerRendezVous(patient, idRdv)
+        return patientService.annulerRendezVous(patient, idRdv, motif)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }

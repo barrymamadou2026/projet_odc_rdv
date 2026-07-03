@@ -41,12 +41,29 @@ public class User {
 
     // Mapping direct sur la nouvelle colonne 'role' (VARCHAR)
     @Enumerated(EnumType.STRING)
-    @Column(name = "id_role", nullable = false, length = 20)
+    @Column(name = "role", nullable = false, length = 20)
     private Role role;
 
     @Builder.Default
     @Column(name = "est_actif", nullable = false)
     private boolean estActif = true;
+
+    /**
+     * Preuve que l'adresse email appartient réellement à la personne inscrite :
+     * passe à true uniquement après clic sur le lien envoyé par email.
+     */
+    @Builder.Default
+    @Column(name = "email_verifie", nullable = false)
+    private boolean emailVerifie = false;
+
+    /** Compteur de tentatives de connexion échouées consécutives (protection brute-force). */
+    @Builder.Default
+    @Column(name = "failed_login_attempts", nullable = false)
+    private int failedLoginAttempts = 0;
+
+    /** Si renseigné et dans le futur, le compte est temporairement verrouillé. */
+    @Column(name = "locked_until")
+    private LocalDateTime lockedUntil;
 
     @Builder.Default
     @Column(name = "date_inscription", nullable = false, updatable = false)

@@ -23,7 +23,7 @@ const Signup: React.FC = () => {
     try {
       const res = await signUp(form.email, form.password, `${form.first} ${form.last}`, form.phone, 'PATIENT');
       if (res.error) { setErr(res.error); setLoading(false); return; }
-      toast.success("Compte créé avec succès !");
+      toast.success("Compte créé ! Un email de confirmation vous a été envoyé — pensez à vérifier votre adresse pour vos prochaines connexions.");
       navigate('/patient');
     } catch {
       setErr("Une erreur inattendue est survenue.");

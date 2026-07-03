@@ -21,6 +21,7 @@ const Login: React.FC = () => {
   const [fpOpen, setFpOpen] = useState(false);
   const [fpEmail, setFpEmail] = useState('');
   const [fpLoading, setFpLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,6 +56,19 @@ const Login: React.FC = () => {
       toast.error(error.message || "Erreur lors de l'envoi.");
     } finally {
       setFpLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!email) { toast.error("Renseignez votre email d'abord."); return; }
+    setResendLoading(true);
+    try {
+      await authApi.resendVerification({ email });
+      toast.success("Si votre compte existe et n'est pas encore vérifié, un nouvel email vient d'être envoyé.");
+    } catch (error: any) {
+      toast.error(error.message || "Erreur lors de l'envoi.");
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -144,7 +158,17 @@ const Login: React.FC = () => {
                 Connexion administrateur
               </label>
 
-              {err && <p className="text-sm text-red-600 text-center bg-red-50 rounded-xl py-2">{err}</p>}
+              {err && (
+                <div className="text-sm text-red-600 text-center bg-red-50 rounded-xl py-2 px-3">
+                  <p>{err}</p>
+                  {err.toLowerCase().includes('confirmer votre adresse email') && (
+                    <button type="button" onClick={handleResendVerification} disabled={resendLoading}
+                      className="mt-1 font-semibold text-orange-600 hover:underline disabled:opacity-50">
+                      {resendLoading ? 'Envoi...' : "Renvoyer l'email de confirmation"}
+                    </button>
+                  )}
+                </div>
+              )}
 
               <button type="submit" disabled={loading}
                 className="w-full py-3.5 rounded-xl bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white font-bold text-base transition-colors flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20">

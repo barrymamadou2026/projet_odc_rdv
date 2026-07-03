@@ -152,4 +152,43 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 ) ENGINE=InnoDB;
 
 -- Mise à jour de la table utilisateurs pour l'image de profil
-ALTER TABLE utilisateurs ADD COLUMN IF NOT EXISTS profile_image_url VARCHAR(255) DEFAULT NULL;
+ALTER TABLE utilisateurs ADD COLUMN profile_image_url VARCHAR(255) DEFAULT NULL;
+-- ============================================================
+-- MIGRATION : passage de id_role (FK vers roles) a un role direct
+-- (deja applique en production le 2026-07-03)
+-- ============================================================
+ALTER TABLE utilisateurs ADD COLUMN role ENUM('PATIENT','MEDECIN','ADMIN') NULL;
+-- UPDATE utilisateurs u JOIN roles r ON u.id_role = r.id_role SET u.role = r.nom;
+-- ALTER TABLE utilisateurs DROP FOREIGN KEY <nom_contrainte_id_role>;
+-- ALTER TABLE utilisateurs DROP COLUMN id_role;
+-- ALTER TABLE utilisateurs MODIFY role ENUM('PATIENT','MEDECIN','ADMIN') NOT NULL;
+
+-- ============================================================
+-- MIGRATION : verification d'email reelle + verrouillage anti-bruteforce
+-- ============================================================
+ALTER TABLE utilisateurs
+    ADD COLUMN email_verifie BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN failed_login_attempts INT NOT NULL DEFAULT 0,
+    ADD COLUMN locked_until DATETIME NULL;
+
+-- Les comptes déjà existants avant cette migration sont considérés comme vérifiés
+-- (sinon plus personne ne pourrait se reconnecter).
+UPDATE utilisateurs SET email_verifie = TRUE WHERE email_verifie = FALSE;
+
+CREATE TABLE IF NOT EXISTS email_verification_tokens (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    token VARCHAR(255) NOT NULL UNIQUE,
+    id_utilisateur BIGINT NOT NULL,
+    expiry_date DATETIME NOT NULL,
+    CONSTRAINT fk_email_verif_user FOREIGN KEY (id_utilisateur) REFERENCES utilisateurs(id_utilisateur) ON DELETE CASCADE,
+    INDEX idx_email_verif_token (token)
+) ENGINE=InnoDB;
+
+-- ============================================================
+-- MIGRATION : tracabilite des annulations de rendez-vous
+-- (patient ou medecin peuvent annuler a tout moment)
+-- ============================================================
+ALTER TABLE rendez_vous
+    ADD COLUMN annule_par VARCHAR(20) NULL COMMENT 'PATIENT ou MEDECIN',
+    ADD COLUMN motif_annulation TEXT NULL,
+    ADD COLUMN date_annulation DATETIME NULL;

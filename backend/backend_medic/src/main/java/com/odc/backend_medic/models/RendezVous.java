@@ -41,6 +41,17 @@ public class RendezVous {
     @Column(name = "motif", columnDefinition = "TEXT")
     private String motif;
 
+    /** Qui a déclenché l'annulation : "PATIENT" ou "MEDECIN". Null tant que non annulé. */
+    @Column(name = "annule_par", length = 20)
+    private String annulePar;
+
+    /** Raison optionnelle fournie lors de l'annulation. */
+    @Column(name = "motif_annulation", columnDefinition = "TEXT")
+    private String motifAnnulation;
+
+    @Column(name = "date_annulation")
+    private LocalDateTime dateAnnulation;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "id_patient", nullable = false, foreignKey = @ForeignKey(name = "fk_rdv_patient"))
     private Patient patient; // Point vers Patient

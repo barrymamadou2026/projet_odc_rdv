@@ -1,6 +1,7 @@
 package com.odc.backend_medic.config;
 
 import com.odc.backend_medic.security.JwtAuthenticationFilter;
+import com.odc.backend_medic.security.RateLimitFilter;
 import com.odc.backend_medic.security.RestAccessDeniedHandler;
 import com.odc.backend_medic.security.RestAuthenticationEntryPoint;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -35,6 +37,7 @@ public class SecurityConfig {
 
     private final UserDetailsService userDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final RateLimitFilter rateLimitFilter;
     private final RestAuthenticationEntryPoint restAuthenticationEntryPoint;
     private final RestAccessDeniedHandler restAccessDeniedHandler;
 
@@ -85,6 +88,12 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf.disable())
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            // En-têtes de sécurité additionnels (défense en profondeur).
+            .headers(headers -> headers
+                    .frameOptions(frame -> frame.deny())
+                    .contentTypeOptions(contentTypeOptions -> {})
+                    .referrerPolicy(referrer -> referrer.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+            )
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint(restAuthenticationEntryPoint)   // 401 JSON propre (non authentifié) au lieu du 403 HTML par défaut
                 .accessDeniedHandler(restAccessDeniedHandler)             // 403 JSON propre (rôle insuffisant)
@@ -93,7 +102,7 @@ public class SecurityConfig {
                 .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                 
                 // CORRECTION : Ajout de "/error" dans la liste publique pour lever le masque sur les exceptions SQL/DB
-                .requestMatchers("/api/auth/**", "/auth/**", "/error").permitAll()       // login, inscription, erreurs système
+                .requestMatchers("/api/auth/**", "/auth/**", "/error").permitAll()       // login, inscription, vérification email, erreurs système
                 .requestMatchers("/uploads/**").permitAll()        // fichiers statiques publics (photos de profil)
                 
                 // Correction ici : Accepter les rôles avec OU sans le préfixe "ROLE_"
@@ -110,6 +119,7 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
             .authenticationProvider(authenticationProvider())
+            .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
