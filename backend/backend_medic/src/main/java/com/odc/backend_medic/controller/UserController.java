@@ -2,7 +2,7 @@ package com.odc.backend_medic.controller;
 
 import com.odc.backend_medic.dto.ChangePasswordRequest;
 import com.odc.backend_medic.dto.UserProfileUpdateRequest;
-import com.odc.backend_medic.models.User;
+import com.odc.backend_medic.dto.UserResponse;
 import com.odc.backend_medic.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,15 +22,14 @@ public class UserController {
     private final UserService userService;
 
     @GetMapping("/profile")
-    public ResponseEntity<User> getUserProfile(Authentication authentication) {
-        User user = userService.getAuthenticatedUser(authentication.getName());
-        return ResponseEntity.ok(user);
+    public ResponseEntity<UserResponse> getUserProfile(Authentication authentication) {
+        return ResponseEntity.ok(userService.getProfileResponse(authentication.getName()));
     }
 
     @PutMapping("/profile")
     public ResponseEntity<?> updateProfile(Authentication authentication, @Valid @RequestBody UserProfileUpdateRequest request) {
         try {
-            User updatedUser = userService.updateProfile(authentication.getName(), request);
+            UserResponse updatedUser = userService.updateProfile(authentication.getName(), request);
             return ResponseEntity.ok(updatedUser);
         } catch (IllegalStateException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());

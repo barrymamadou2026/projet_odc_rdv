@@ -126,6 +126,12 @@ export const notificationApi = {
   markAllAsRead: () => request<void>('/notifications/read-all', { method: 'PATCH' }),
 };
 
+export interface PublicStats { totalPatients: number; totalMedecins: number; totalConsultations: number; totalSpecialites: number; }
+
+export const publicApi = {
+  getStats: () => request<PublicStats>('/public/stats'),
+};
+
 export const userApi = {
   getProfile: () => request<any>('/users/profile'),
   updateProfile: (data: UserProfileUpdateRequest) => request<any>('/users/profile', { method: 'PUT', body: JSON.stringify(data) }),
@@ -137,4 +143,4 @@ export const userApi = {
   },
 };
 
-export default { authApi, patientApi, medecinApi, adminApi, notificationApi, userApi };
+export default { authApi, patientApi, medecinApi, adminApi, notificationApi, userApi, publicApi };

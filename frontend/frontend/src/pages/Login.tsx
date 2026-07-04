@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -92,18 +92,10 @@ const Login: React.FC = () => {
         <div className="w-full max-w-md">
           {/* Card */}
           <div className="bg-white rounded-3xl shadow-2xl shadow-gray-200/80 p-8 sm:p-10 border border-gray-100">
-            {/* ODC Badge */}
-            <div className="flex justify-center mb-6">
-              <div className="flex items-center gap-2 bg-orange-50 border border-orange-100 rounded-2xl px-4 py-2">
-                <div className="w-8 h-8 rounded-lg overflow-hidden bg-orange-500">
-                  <img src="/odc-logo.png" alt="ODC" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
-                </div>
-                <div>
-                  <p className="text-xs font-black text-orange-600">ODC-GUINÉE</p>
-                  <p className="text-[10px] text-orange-400">Projet de Fin de Formation</p>
-                </div>
-              </div>
-            </div>
+            {/* Retour à l'accueil */}
+            <Link to="/" className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-orange-500 transition-colors mb-6">
+              <ArrowLeft className="w-4 h-4" /> Retour à l'accueil
+            </Link>
 
             <h1 className="text-2xl font-extrabold text-center text-gray-900">Bienvenue</h1>
             <p className="text-center text-gray-500 text-sm mt-1 mb-8">Accédez à votre espace MedConnect</p>

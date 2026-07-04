@@ -104,6 +104,7 @@ public class SecurityConfig {
                 // CORRECTION : Ajout de "/error" dans la liste publique pour lever le masque sur les exceptions SQL/DB
                 .requestMatchers("/api/auth/**", "/auth/**", "/error").permitAll()       // login, inscription, vérification email, erreurs système
                 .requestMatchers("/uploads/**").permitAll()        // fichiers statiques publics (photos de profil)
+                .requestMatchers("/api/public/**").permitAll()      // statistiques publiques de la page d'accueil
                 
                 // Correction ici : Accepter les rôles avec OU sans le préfixe "ROLE_"
                 .requestMatchers("/api/admin/**").hasAnyAuthority("ROLE_ADMIN", "ADMIN")

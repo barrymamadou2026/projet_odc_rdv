@@ -1,6 +1,9 @@
 package com.odc.backend_medic.service;
 
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import com.odc.backend_medic.dto.UserProfileUpdateRequest;
+import com.odc.backend_medic.dto.UserResponse;
 import com.odc.backend_medic.models.Medecin;
 import com.odc.backend_medic.models.Patient;
 import com.odc.backend_medic.models.User;
@@ -9,7 +12,6 @@ import com.odc.backend_medic.repository.MedecinRepository;
 import com.odc.backend_medic.repository.PatientRepository;
 import com.odc.backend_medic.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -17,13 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -33,14 +31,7 @@ public class UserService {
     private final PatientRepository patientRepository;
     private final MedecinRepository medecinRepository;
     private final PasswordEncoder passwordEncoder;
-
-    // Répertoire physique où les fichiers sont stockés sur le serveur.
-    @Value("${app.upload.dir:uploads}")
-    private String uploadDir;
-
-    // URL publique de base du backend, utilisée pour reconstruire une URL absolue accessible par le navigateur.
-    @Value("${app.base-url:http://localhost:8080}")
-    private String baseUrl;
+    private final Cloudinary cloudinary;
 
     private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of("image/jpeg", "image/png", "image/webp", "image/gif");
     private static final long MAX_FILE_SIZE = 5L * 1024 * 1024; // 5 Mo
@@ -51,16 +42,45 @@ public class UserService {
     }
 
     /**
+     * Construit la réponse de profil complète (jamais l'entité User brute :
+     * ça exposerait le hash du mot de passe en JSON) en allant chercher
+     * téléphone/adresse/antécédents sur la fiche Patient ou Médecin associée,
+     * puisque ces champs ne vivent pas sur User.
+     */
+    public UserResponse getProfileResponse(String email) {
+        User user = getAuthenticatedUser(email);
+        return buildProfileResponse(user);
+    }
+
+    private UserResponse buildProfileResponse(User user) {
+        if (user.getRole() == Role.PATIENT) {
+            Patient patient = patientRepository.findByUser_IdUtilisateur(user.getIdUtilisateur()).orElse(null);
+            if (patient != null) {
+                return UserResponse.fromEntity(user, patient.getTelephone(), patient.getAdresse(), patient.getAntecedentsMedicaux());
+            }
+        } else if (user.getRole() == Role.MEDECIN) {
+            Medecin medecin = medecinRepository.findByUser_IdUtilisateur(user.getIdUtilisateur()).orElse(null);
+            if (medecin != null) {
+                return UserResponse.fromEntity(user, medecin.getTelephone(), medecin.getAdresse(), null);
+            }
+        }
+        return UserResponse.fromEntity(user);
+    }
+
+    /**
      * Met à jour les informations du compte (nom/prénom/email) ET les champs
      * spécifiques au profil métier (téléphone/adresse pour Patient et Médecin,
      * antécédents médicaux pour Patient).
      *
      * Avant ce correctif, seuls nom/prénom/email étaient persistés : téléphone,
      * adresse et antécédents médicaux saisis dans le formulaire "Paramètres"
-     * étaient silencieusement perdus (jamais écrits en base).
+     * étaient silencieusement perdus (jamais écrits en base). Et la réponse
+     * renvoyait l'entité User brute, qui ne contient de toute façon pas ces
+     * champs (ils vivent sur Patient/Medecin) — d'où "jamais récupérés" côté
+     * frontend même après une sauvegarde réussie.
      */
     @Transactional
-    public User updateProfile(String email, UserProfileUpdateRequest request) {
+    public UserResponse updateProfile(String email, UserProfileUpdateRequest request) {
         User user = getAuthenticatedUser(email);
 
         user.setNom(request.getNom());
@@ -85,7 +105,7 @@ public class UserService {
             medecinRepository.save(medecin);
         }
 
-        return savedUser;
+        return buildProfileResponse(savedUser);
     }
 
     @Transactional
@@ -101,12 +121,18 @@ public class UserService {
     }
 
     /**
-     * Enregistre physiquement le fichier envoyé par l'utilisateur sur le disque du serveur
-     * et renvoie une URL absolue et réellement accessible par le navigateur.
+     * Envoie la photo de profil sur Cloudinary (stockage cloud persistant) et
+     * renvoie l'URL sécurisée (CDN) résultante.
      *
-     * Avant : une URL factice ("https://example.com/...") était générée sans jamais
-     * sauvegarder le fichier, ce qui provoquait un blocage ORB (OpaqueResponseBlocking)
-     * côté navigateur car cette URL ne renvoyait pas une vraie image.
+     * Avant : le fichier était écrit sur le disque local du serveur Render,
+     * qui est éphémère — toute photo uploadée disparaissait au redéploiement
+     * suivant, et l'URL renvoyée pointait vers app.base-url (souvent oublié,
+     * donc http://localhost:8080 par défaut = inaccessible depuis le navigateur).
+     *
+     * On utilise un public_id déterministe par utilisateur ("user_<id>") avec
+     * overwrite=true : chaque nouvel upload remplace automatiquement l'ancienne
+     * image chez Cloudinary, sans avoir besoin de gérer nous-mêmes un nettoyage
+     * de l'ancien fichier.
      */
     @Transactional
     public String uploadProfileImage(String email, MultipartFile file) throws IOException {
@@ -123,42 +149,20 @@ public class UserService {
             throw new IllegalArgumentException("Format d'image non supporté. Utilisez JPEG, PNG, WEBP ou GIF.");
         }
 
-        // Répertoire dédié aux photos de profil.
-        Path targetDir = Paths.get(uploadDir, "profile-images");
-        Files.createDirectories(targetDir);
+        String publicId = "medconnect/profile-images/user_" + user.getIdUtilisateur();
 
-        // Nom de fichier unique pour éviter les collisions et les problèmes de cache.
-        String originalFilename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "image";
-        String extension = "";
-        int dotIndex = originalFilename.lastIndexOf('.');
-        if (dotIndex >= 0) {
-            extension = originalFilename.substring(dotIndex);
-        }
-        String storedFilename = "user_" + user.getIdUtilisateur() + "_" + UUID.randomUUID() + extension;
+        Map<?, ?> uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.asMap(
+                "public_id", publicId,
+                "overwrite", true,
+                "invalidate", true,
+                "resource_type", "image",
+                "folder", null // le public_id contient déjà le chemin complet
+        ));
 
-        Path targetPath = targetDir.resolve(storedFilename);
-        Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
-
-        // Nettoyage de l'ancienne image (évite d'accumuler des fichiers orphelins).
-        deleteOldProfileImage(user.getProfileImageUrl());
-
-        String imageUrl = baseUrl + "/uploads/profile-images/" + storedFilename;
+        String imageUrl = (String) uploadResult.get("secure_url");
         user.setProfileImageUrl(imageUrl);
         userRepository.save(user);
         return imageUrl;
-    }
-
-    private void deleteOldProfileImage(String oldImageUrl) {
-        if (oldImageUrl == null || !oldImageUrl.contains("/uploads/profile-images/")) {
-            return;
-        }
-        try {
-            String oldFilename = oldImageUrl.substring(oldImageUrl.lastIndexOf('/') + 1);
-            Path oldPath = Paths.get(uploadDir, "profile-images", oldFilename);
-            Files.deleteIfExists(oldPath);
-        } catch (IOException ignored) {
-            // Suppression best-effort : une erreur ici ne doit jamais bloquer l'upload de la nouvelle image.
-        }
     }
 
     public Optional<String> getProfileImageUrl(String email) {

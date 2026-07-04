@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar, Video, Activity, ArrowRight, ShieldCheck,
@@ -7,6 +7,7 @@ import {
 import PublicHeader from '@/components/medic/PublicHeader';
 import Footer from '@/components/medic/Footer';
 import { SERVICES, IMAGES } from '@/data/medicData';
+import { publicApi, PublicStats } from '@/lib/api';
 
 const ServiceIcon: React.FC<{ i: number }> = ({ i }) => {
   const icons = [FileText, Stethoscope, BellRing, Phone];
@@ -18,6 +19,11 @@ const Home: React.FC = () => {
   const navigate = useNavigate();
   const [spec, setSpec] = useState('');
   const [city, setCity] = useState('');
+  const [stats, setStats] = useState<PublicStats>({ totalPatients: 0, totalMedecins: 0, totalConsultations: 0, totalSpecialites: 0 });
+
+  useEffect(() => {
+    publicApi.getStats().then(setStats).catch(() => {});
+  }, []);
 
   const search = (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,9 +60,9 @@ const Home: React.FC = () => {
               {[IMAGES.doctorMale1, IMAGES.doctorFemale1, IMAGES.doctorMale2].map((s) => (
                 <img key={s} src={s} className="w-8 h-8 rounded-full border-2 border-white object-cover" />
               ))}
-              <span className="w-8 h-8 rounded-full bg-orange-500 text-white text-xs font-bold flex items-center justify-center border-2 border-white">+5k</span>
+              <span className="w-8 h-8 rounded-full bg-orange-500 text-white text-xs font-bold flex items-center justify-center border-2 border-white">{stats.totalPatients}</span>
             </div>
-            <span className="text-sm text-gray-500">Rejoignez plus de 5000+ patients satisfaits</span>
+            <span className="text-sm text-gray-500">Rejoignez déjà {stats.totalPatients} patient{stats.totalPatients > 1 ? 's' : ''} sur MedConnect</span>
           </div>
         </div>
 
@@ -84,8 +90,8 @@ const Home: React.FC = () => {
           <div className="space-y-4">
             <div className="rounded-2xl bg-blue-600 text-white p-4">
               <Calendar className="w-5 h-5 mb-3" />
-              <p className="text-2xl font-extrabold">15min</p>
-              <p className="text-xs text-blue-100">Attente moyenne</p>
+              <p className="text-2xl font-extrabold">{stats.totalMedecins}</p>
+              <p className="text-xs text-blue-100">Médecins actifs</p>
             </div>
             <div className="rounded-2xl bg-white border border-gray-100 p-4 shadow-sm">
               <div className="w-9 h-9 rounded-full bg-green-50 flex items-center justify-center mb-3">
@@ -147,11 +153,11 @@ const Home: React.FC = () => {
               </form>
               <div className="mt-8 flex gap-10">
                 <div>
-                  <p className="text-2xl font-extrabold text-blue-600">4.9/5</p>
-                  <p className="text-xs text-gray-400 uppercase tracking-wide">Note moyenne</p>
+                  <p className="text-2xl font-extrabold text-blue-600">{stats.totalSpecialites}</p>
+                  <p className="text-xs text-gray-400 uppercase tracking-wide">Spécialités</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-extrabold text-orange-600">12k+</p>
+                  <p className="text-2xl font-extrabold text-orange-600">{stats.totalConsultations}</p>
                   <p className="text-xs text-gray-400 uppercase tracking-wide">Consultations</p>
                 </div>
               </div>
