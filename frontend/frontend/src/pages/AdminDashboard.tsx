@@ -32,21 +32,29 @@ const AdminDashboard: React.FC = () => {
 
   const fetchData = async () => {
     setLoading(true);
-    try {
-      const [u, a, s, c, n] = await Promise.all([
-        adminApi.getUsers(),
-        adminApi.getAllAppointments(),
-        adminApi.getSpecialites(),
-        adminApi.getAllConsultations(),
-        adminApi.getAllNotifications(),
-      ]);
-      setUsers(u as UserData[]);
-      setAppointments(a as AppointmentData[]);
-      setSpecialites(s as Specialite[]);
-      setConsultations(c as ConsultationData[]);
-      setNotifications(n as NotificationData[]);
-    } catch { toast.error("Erreur lors du chargement des données"); }
-    finally { setLoading(false); }
+    // Promise.allSettled : si un seul endpoint échoue (ex: table manquante,
+    // erreur ponctuelle), les autres continuent de s'afficher au lieu de
+    // tout vider silencieusement (c'était le bug précédent avec Promise.all).
+    const results = await Promise.allSettled([
+      adminApi.getUsers(),
+      adminApi.getAllAppointments(),
+      adminApi.getSpecialites(),
+      adminApi.getAllConsultations(),
+      adminApi.getAllNotifications(),
+    ]);
+    const [u, a, s, c, n] = results;
+    if (u.status === 'fulfilled') setUsers(u.value as UserData[]);
+    if (a.status === 'fulfilled') setAppointments(a.value as AppointmentData[]);
+    if (s.status === 'fulfilled') setSpecialites(s.value as Specialite[]);
+    if (c.status === 'fulfilled') setConsultations(c.value as ConsultationData[]);
+    if (n.status === 'fulfilled') setNotifications(n.value as NotificationData[]);
+
+    const failed = results.filter(r => r.status === 'rejected');
+    if (failed.length > 0) {
+      console.error('Échecs de chargement admin:', failed);
+      toast.error(`${failed.length} section(s) n'ont pas pu être chargées`);
+    }
+    setLoading(false);
   };
 
   useEffect(() => { fetchData(); }, []);
