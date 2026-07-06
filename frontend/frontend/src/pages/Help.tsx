@@ -45,10 +45,10 @@ const Help: React.FC = () => (
         <h2 className="text-xl font-bold mb-2">Besoin d'aide supplémentaire ?</h2>
         <p className="text-orange-100 mb-6">L'équipe ODC-Guinée est disponible pour vous accompagner.</p>
         <div className="flex justify-center gap-4 flex-wrap">
-          <a href="mailto:support@odc-guinee.com" className="flex items-center gap-2 bg-white text-orange-600 font-bold px-5 py-2.5 rounded-xl hover:bg-orange-50 transition-colors">
+          <a href="mailto:mb624064783@gmail.com" className="flex items-center gap-2 bg-white text-orange-600 font-bold px-5 py-2.5 rounded-xl hover:bg-orange-50 transition-colors">
             <Mail className="w-4 h-4" /> Email
           </a>
-          <a href="tel:+224000000000" className="flex items-center gap-2 bg-white/20 border border-white/30 text-white font-bold px-5 py-2.5 rounded-xl hover:bg-white/30 transition-colors">
+          <a href="tel:+224624064783" className="flex items-center gap-2 bg-white/20 border border-white/30 text-white font-bold px-5 py-2.5 rounded-xl hover:bg-white/30 transition-colors">
             <Phone className="w-4 h-4" /> Appeler
           </a>
         </div>

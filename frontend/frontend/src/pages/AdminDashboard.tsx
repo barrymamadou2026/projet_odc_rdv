@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Users, CalendarCheck, AlertTriangle, Plus, Shield, ShieldOff, X, Loader2, LayoutGrid, List, Stethoscope, Bell, FileText } from 'lucide-react';
 import DashboardShell from '@/components/medic/DashboardShell';
 import DashboardTopbar from '@/components/medic/DashboardTopbar';
@@ -26,7 +27,21 @@ const AdminDashboard: React.FC = () => {
   const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'users' | 'appointments' | 'consultations' | 'notifications'>('users');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = (searchParams.get('tab') as 'users' | 'appointments' | 'consultations' | 'notifications') || 'users';
+  const [activeTab, setActiveTabState] = useState<'users' | 'appointments' | 'consultations' | 'notifications'>(initialTab);
+  // Garde l'URL synchronisée avec l'onglet actif (permet au lien "Utilisateurs"
+  // du menu de gauche de sélectionner le bon onglet, et rend l'onglet actif
+  // partageable/rechargeable).
+  const setActiveTab = (tab: 'users' | 'appointments' | 'consultations' | 'notifications') => {
+    setActiveTabState(tab);
+    setSearchParams(tab === 'users' ? {} : { tab });
+  };
+  useEffect(() => {
+    const tabParam = searchParams.get('tab') as 'users' | 'appointments' | 'consultations' | 'notifications' | null;
+    if (tabParam && tabParam !== activeTab) setActiveTabState(tabParam);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
   const [form, setForm] = useState({ nom: '', prenom: '', email: '', password: '', idSpecialite: '', telephone: '', adresse: '' });
   const [creating, setCreating] = useState(false);
 
@@ -97,7 +112,7 @@ const AdminDashboard: React.FC = () => {
   ];
 
   return (
-    <DashboardShell active="Dashboard">
+    <DashboardShell active={activeTab === 'users' ? 'Utilisateurs' : 'Dashboard'}>
       <DashboardTopbar title="Tableau de Bord Admin" rightLabel="Admin Console" />
 
       {/* Stats */}

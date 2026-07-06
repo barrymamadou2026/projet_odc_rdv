@@ -60,6 +60,7 @@ const FindDoctors: React.FC = () => {
   const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
+  const watchIdRef = useRef<number | null>(null);
   const leafletReady = useLeaflet();
 
   useEffect(() => {
@@ -69,6 +70,10 @@ const FindDoctors: React.FC = () => {
       .finally(() => setLoading(false));
   }, []);
 
+  // Recherche ponctuelle des structures proches (un seul appel API), puis
+  // bascule sur un suivi de position CONTINU (watchPosition) pour que le point
+  // bleu "vous êtes ici" se mette à jour en temps réel sur la carte, sans que
+  // l'utilisateur ait besoin de recliquer sur le bouton à chaque déplacement.
   const handleUseMyLocation = () => {
     if (!navigator.geolocation) {
       toast.error("La géolocalisation n'est pas disponible sur cet appareil.");
@@ -79,20 +84,29 @@ const FindDoctors: React.FC = () => {
       async (pos) => {
         const { latitude, longitude } = pos.coords;
         setUserPos({ lat: latitude, lng: longitude });
+        setView('carte');
         try {
           const nearby = await patientApi.getNearbyDoctors(latitude, longitude, 50);
           if ((nearby as any[]).length === 0) {
-            toast.info("Aucun médecin géolocalisé trouvé dans un rayon de 50 km pour l'instant.");
+            toast.info("Aucune structure géolocalisée trouvée dans un rayon de 50 km pour l'instant — votre position s'affiche quand même sur la carte.");
           } else {
             toast.success(`${(nearby as any[]).length} structure(s) trouvée(s) près de vous`);
           }
           setDoctors(nearby as any[]);
-          setView('carte');
         } catch {
           toast.error("Erreur lors de la recherche à proximité");
         } finally {
           setLocating(false);
         }
+
+        // Démarre (ou redémarre) le suivi en temps réel de la position pour
+        // que le marqueur "vous êtes ici" bouge tout seul sur la carte.
+        if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = navigator.geolocation.watchPosition(
+          (livePos) => setUserPos({ lat: livePos.coords.latitude, lng: livePos.coords.longitude }),
+          () => {},
+          { enableHighAccuracy: true, maximumAge: 5000 }
+        );
       },
       () => {
         toast.error("Impossible d'obtenir votre position. Vérifiez les autorisations de localisation.");
@@ -101,6 +115,14 @@ const FindDoctors: React.FC = () => {
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
+
+  // Coupe le suivi de position quand on quitte la page (évite de consommer
+  // la batterie/le GPS de l'utilisateur en arrière-plan).
+  useEffect(() => {
+    return () => {
+      if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
+    };
+  }, []);
 
   // Construit/actualise la carte Leaflet quand on est en vue "carte"
   useEffect(() => {
@@ -224,12 +246,6 @@ const FindDoctors: React.FC = () => {
 
       {loading ? (
         <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-orange-400" /></div>
-      ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-          <AlertCircle className="w-12 h-12 mb-3 opacity-30" />
-          <p className="font-semibold">Aucun médecin trouvé</p>
-          {searchTerm && <button onClick={() => setSearchTerm('')} className="mt-3 text-orange-500 text-sm font-bold hover:underline">Effacer la recherche</button>}
-        </div>
       ) : view === 'carte' ? (
         <div className="rounded-3xl overflow-hidden border border-gray-100 shadow-sm">
           <div ref={mapRef} style={{ height: '420px', width: '100%' }} />
@@ -254,6 +270,12 @@ const FindDoctors: React.FC = () => {
               <p className="text-sm text-gray-400 col-span-2 text-center py-4">Aucune structure géolocalisée à afficher pour l'instant.</p>
             )}
           </div>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+          <AlertCircle className="w-12 h-12 mb-3 opacity-30" />
+          <p className="font-semibold">Aucun médecin trouvé</p>
+          {searchTerm && <button onClick={() => setSearchTerm('')} className="mt-3 text-orange-500 text-sm font-bold hover:underline">Effacer la recherche</button>}
         </div>
       ) : (
         <>

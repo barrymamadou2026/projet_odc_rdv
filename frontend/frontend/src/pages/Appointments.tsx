@@ -18,6 +18,7 @@ const Appointments: React.FC = () => {
   const { role } = useAuth();
   const navigate = useNavigate();
   const [appointments, setAppointments] = useState<any[]>([]);
+  const [mesCreneaux, setMesCreneaux] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<number | null>(null);
 
@@ -43,6 +44,15 @@ const Appointments: React.FC = () => {
         ? await patientApi.getMyAppointments()
         : await medecinApi.getMyAppointments();
       setAppointments(data as any[]);
+      // Les créneaux (Disponibilité) créés par le médecin ne sont PAS des
+      // rendez-vous tant que personne n'a réservé — ils étaient donc invisibles
+      // dans "Mon Agenda" après création. On les charge à part pour les afficher.
+      if (role === 'MEDECIN') {
+        try {
+          const dispos = await medecinApi.getDisponibilites();
+          setMesCreneaux((dispos as any[]).sort((a, b) => new Date(a.dateDebut).getTime() - new Date(b.dateDebut).getTime()));
+        } catch { /* non bloquant */ }
+      }
     } catch {
       toast.error("Erreur lors du chargement des rendez-vous");
     } finally {
@@ -131,6 +141,32 @@ const Appointments: React.FC = () => {
           )}
         </div>
       </div>
+
+      {role === 'MEDECIN' && mesCreneaux.length > 0 && (
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 mb-6">
+          <h3 className="font-bold text-gray-900 mb-1">Mes créneaux</h3>
+          <p className="text-xs text-gray-400 mb-4">Créneaux que vous avez ouverts — libres ou déjà réservés par un patient.</p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {mesCreneaux.map((c) => (
+              <div key={c.idDispo} className={`flex items-center justify-between gap-2 p-3 rounded-xl border ${c.estLibre ? 'border-gray-100' : 'border-orange-100 bg-orange-50/50'}`}>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-800">
+                    {c.dateDebut ? new Date(c.dateDebut).toLocaleDateString('fr-FR') : '–'}
+                  </p>
+                  <p className="text-xs text-gray-400 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {c.dateDebut ? new Date(c.dateDebut).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : ''}
+                    {c.dateFin ? ` – ${new Date(c.dateFin).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` : ''}
+                  </p>
+                </div>
+                <span className={`shrink-0 px-2 py-1 rounded-full text-[10px] font-extrabold tracking-wider ${c.estLibre ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                  {c.estLibre ? 'LIBRE' : 'RÉSERVÉ'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
         {loading ? (

@@ -72,45 +72,53 @@ public class MedecinService {
      * immédiatement (in-app + email + SMS).
      */
     @Transactional
-    public Optional<RendezVousResponse> changerStatutRdv(Medecin medecin, Long idRdv, StatutRendezVous statut, String motif) {
-        return rendezVousRepository.findById(idRdv)
-                .filter(rdv -> rdv.getDisponibilite().getMedecin().getIdMedecin().equals(medecin.getIdMedecin()))
-                .filter(rdv -> rdv.getStatut() != StatutRendezVous.ANNULE) // pas de double-annulation
-                .map(rdv -> {
-                    rdv.setStatut(statut);
+    public RendezVousResponse changerStatutRdv(Medecin medecin, Long idRdv, StatutRendezVous statut, String motif) {
+        RendezVous rdv = rendezVousRepository.findById(idRdv)
+                .orElseThrow(() -> new IllegalArgumentException("Rendez-vous introuvable (id=" + idRdv + ")"));
 
-                    // Si annulé, on peut libérer à nouveau la disponibilité associée
-                    if (statut == StatutRendezVous.ANNULE) {
-                        rdv.getDisponibilite().setEstLibre(true);
-                        disponibiliteRepository.save(rdv.getDisponibilite());
-                        rdv.setAnnulePar("MEDECIN");
-                        rdv.setMotifAnnulation(motif);
-                        rdv.setDateAnnulation(LocalDateTime.now());
-                    }
+        if (!rdv.getDisponibilite().getMedecin().getIdMedecin().equals(medecin.getIdMedecin())) {
+            throw new AccessDeniedException("Ce rendez-vous ne vous appartient pas");
+        }
+        if (rdv.getStatut() == StatutRendezVous.ANNULE) {
+            throw new IllegalStateException("Ce rendez-vous est déjà annulé, action impossible.");
+        }
+        if (statut == StatutRendezVous.CONFIRME && rdv.getStatut() == StatutRendezVous.CONFIRME) {
+            throw new IllegalStateException("Ce rendez-vous est déjà confirmé.");
+        }
 
-                    RendezVous savedRdv = rendezVousRepository.save(rdv);
+        rdv.setStatut(statut);
 
-                    String message;
-                    if (statut == StatutRendezVous.CONFIRME) {
-                        message = String.format("Votre rendez-vous du %s avec le Dr. %s %s est confirmé.",
-                                AppointmentNotifier.formatDate(savedRdv.getDateHeure()),
-                                medecin.getUser().getPrenom(), medecin.getUser().getNom());
-                    } else {
-                        message = String.format("Le Dr. %s %s a annulé votre rendez-vous du %s.%s",
-                                medecin.getUser().getPrenom(), medecin.getUser().getNom(),
-                                AppointmentNotifier.formatDate(savedRdv.getDateHeure()),
-                                (motif != null && !motif.isBlank()) ? " Motif : " + motif : "");
-                    }
+        // Si annulé, on peut libérer à nouveau la disponibilité associée
+        if (statut == StatutRendezVous.ANNULE) {
+            rdv.getDisponibilite().setEstLibre(true);
+            disponibiliteRepository.save(rdv.getDisponibilite());
+            rdv.setAnnulePar("MEDECIN");
+            rdv.setMotifAnnulation(motif);
+            rdv.setDateAnnulation(LocalDateTime.now());
+        }
 
-                    appointmentNotifier.notifier(
-                            savedRdv.getPatient().getUser(),
-                            message,
-                            statut == StatutRendezVous.CONFIRME ? "Rendez-vous confirmé" : "Rendez-vous annulé par le médecin",
-                            statut == StatutRendezVous.CONFIRME ? "INFO" : "ALERTE",
-                            savedRdv.getPatient().getTelephone());
+        RendezVous savedRdv = rendezVousRepository.save(rdv);
 
-                    return RendezVousResponse.fromEntity(savedRdv);
-                });
+        String message;
+        if (statut == StatutRendezVous.CONFIRME) {
+            message = String.format("Votre rendez-vous du %s avec le Dr. %s %s est confirmé.",
+                    AppointmentNotifier.formatDate(savedRdv.getDateHeure()),
+                    medecin.getUser().getPrenom(), medecin.getUser().getNom());
+        } else {
+            message = String.format("Le Dr. %s %s a annulé votre rendez-vous du %s.%s",
+                    medecin.getUser().getPrenom(), medecin.getUser().getNom(),
+                    AppointmentNotifier.formatDate(savedRdv.getDateHeure()),
+                    (motif != null && !motif.isBlank()) ? " Motif : " + motif : "");
+        }
+
+        appointmentNotifier.notifier(
+                savedRdv.getPatient().getUser(),
+                message,
+                statut == StatutRendezVous.CONFIRME ? "Rendez-vous confirmé" : "Rendez-vous annulé par le médecin",
+                statut == StatutRendezVous.CONFIRME ? "INFO" : "ALERTE",
+                savedRdv.getPatient().getTelephone());
+
+        return RendezVousResponse.fromEntity(savedRdv);
     }
 
     public List<ConsultationResponse> getMesConsultations(Long idMedecin) {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar, Activity, ArrowRight, ShieldCheck,
@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import PublicHeader from '@/components/medic/PublicHeader';
 import Footer from '@/components/medic/Footer';
+import { publicApi, PublicStats } from '@/lib/api';
 
 const SERVICES = [
   { title: 'Dossier Digital', description: "Accédez à votre historique médical complet, ordonnances et résultats en un endroit sécurisé.", icon: FileText, color: 'text-orange-500', bg: 'bg-orange-50' },
@@ -16,6 +17,11 @@ const SERVICES = [
 
 const AppLayout: React.FC = () => {
   const navigate = useNavigate();
+  const [stats, setStats] = useState<PublicStats>({ totalPatients: 0, totalMedecins: 0, totalConsultations: 0, totalSpecialites: 0 });
+
+  useEffect(() => {
+    publicApi.getStats().then(setStats).catch(() => {});
+  }, []);
 
   return (
     <div className="bg-gray-50 min-h-screen flex flex-col">
@@ -45,10 +51,14 @@ const AppLayout: React.FC = () => {
               Se connecter
             </button>
           </div>
-          {/* Stats */}
+          {/* Stats — chiffres réels de la plateforme (GET /api/public/stats) */}
           <div className="mt-10 flex items-center gap-6 flex-wrap">
-            {[['5000+', 'Patients'], ['120+', 'Médecins'], ['30+', 'Spécialités']].map(([val, lbl]) => (
-              <div key={lbl}>
+            {[
+              [stats.totalPatients, 'Patients'],
+              [stats.totalMedecins, 'Médecins'],
+              [stats.totalSpecialites, 'Spécialités'],
+            ].map(([val, lbl]) => (
+              <div key={lbl as string}>
                 <p className="text-2xl font-extrabold text-gray-900">{val}</p>
                 <p className="text-xs text-gray-500">{lbl}</p>
               </div>

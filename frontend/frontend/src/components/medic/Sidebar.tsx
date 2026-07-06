@@ -33,7 +33,7 @@ const Sidebar: React.FC<{ active?: string }> = ({ active = 'Dashboard' }) => {
     // ADMIN
     return [
       { label: 'Dashboard',         icon: LayoutDashboard, to: '/admin' },
-      { label: 'Utilisateurs',      icon: UserCheck,        to: '/admin' },
+      { label: 'Utilisateurs',      icon: UserCheck,        to: '/admin?tab=users' },
       { label: 'Paramètres',        icon: Settings,         to: '/settings' },
     ];
   };
@@ -48,7 +48,11 @@ const Sidebar: React.FC<{ active?: string }> = ({ active = 'Dashboard' }) => {
 
       <nav className="flex-1 px-3 py-4 space-y-1">
         {NAV.map((item) => {
-          const isActive = active === item.label || location.pathname === item.to;
+          // Si "active" est fourni, il fait autorité (permet de distinguer deux
+          // liens qui pointent vers la même route, ex: Dashboard/Utilisateurs
+          // admin qui sont deux onglets d'une seule page /admin). Sinon on
+          // retombe sur la comparaison d'URL classique.
+          const isActive = active ? active === item.label : location.pathname === item.to;
           const Icon = item.icon;
           return (
             <Link
