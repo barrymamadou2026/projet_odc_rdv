@@ -11,6 +11,7 @@ const Signup: React.FC = () => {
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ first: '', last: '', email: '', phone: '', password: '', confirm: '' });
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm(prev => ({ ...prev, [k]: e.target.value }));
 
@@ -104,6 +105,18 @@ const Signup: React.FC = () => {
                 <label className="text-xs font-semibold text-gray-600 mb-1 block">Confirmer le mot de passe *</label>
                 <input type="password" value={form.confirm} onChange={set('confirm')} required placeholder="••••••••" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-orange-400 text-sm" />
               </div>
+
+              <label className="flex items-start gap-2.5 cursor-pointer select-none pt-1">
+                <input
+                  type="checkbox"
+                  checked={marketingOptIn}
+                  onChange={(e) => setMarketingOptIn(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400"
+                />
+                <span className="text-xs text-gray-500 leading-snug">
+                  J'accepte de recevoir par email les actualités et offres de MedConnect ODC (facultatif — vous recevrez toujours les emails liés à votre compte et vos rendez-vous, indépendamment de ce choix).
+                </span>
+              </label>
 
               {err && <p className="text-sm text-red-600 bg-red-50 rounded-xl py-2 text-center">{err}</p>}
 
