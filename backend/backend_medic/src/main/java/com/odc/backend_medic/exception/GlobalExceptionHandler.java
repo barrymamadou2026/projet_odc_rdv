@@ -4,11 +4,15 @@ import com.odc.backend_medic.dto.ApiErrorResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Gestionnaire d'exceptions global. Avant ce fichier, un upload trop volumineux
@@ -29,6 +33,29 @@ public class GlobalExceptionHandler {
                 .message("Le fichier envoyé dépasse la taille maximale autorisée par le serveur (10 Mo). Réduisez la taille de l'image et réessayez.")
                 .build();
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(error);
+    }
+
+    // Avant ce handler, une erreur de validation @Valid (ex: mot de passe trop
+    // faible, champ obligatoire manquant) n'était interceptée nulle part et
+    // Spring renvoyait sa page d'erreur générique par défaut ({timestamp, status,
+    // error:"Bad Request", path} SANS AUCUN message expliquant quel champ est
+    // invalide ni pourquoi) — le frontend et l'utilisateur n'avaient aucune idée
+    // du problème réel. On extrait maintenant le(s) message(s) de validation
+    // définis sur les DTO (ex: RegisterRequest) et on les renvoie clairement.
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiErrorResponse> handleValidation(MethodArgumentNotValidException ex) {
+        List<String> details = ex.getBindingResult().getFieldErrors().stream()
+                .map(FieldError::getDefaultMessage)
+                .collect(Collectors.toList());
+        String message = details.isEmpty() ? "Données invalides." : String.join(" ", details);
+        ApiErrorResponse error = ApiErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error("Requête invalide")
+                .message(message)
+                .details(details)
+                .build();
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
     // Avant ces handlers, une IllegalArgumentException/IllegalStateException/

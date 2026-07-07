@@ -19,7 +19,10 @@ const Signup: React.FC = () => {
     e.preventDefault();
     setErr('');
     if (form.password !== form.confirm) { setErr("Les mots de passe ne correspondent pas."); return; }
-    if (form.password.length < 6) { setErr("Le mot de passe doit contenir au moins 6 caractères."); return; }
+    if (form.password.length < 8 || !/[a-z]/.test(form.password) || !/[A-Z]/.test(form.password) || !/\d/.test(form.password)) {
+      setErr("Le mot de passe doit contenir au moins 8 caractères, avec une majuscule, une minuscule et un chiffre.");
+      return;
+    }
     setLoading(true);
     try {
       const res = await signUp(form.email, form.password, `${form.first} ${form.last}`, form.phone, 'PATIENT');
@@ -99,6 +102,7 @@ const Signup: React.FC = () => {
                   <input type={show ? 'text' : 'password'} value={form.password} onChange={set('password')} required placeholder="••••••••" className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-orange-400 text-sm" />
                   <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
                 </div>
+                <p className="text-[11px] text-gray-400 mt-1">8 caractères minimum, avec une majuscule, une minuscule et un chiffre.</p>
               </div>
 
               <div>
