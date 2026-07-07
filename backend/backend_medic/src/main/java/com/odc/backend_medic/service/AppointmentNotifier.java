@@ -23,6 +23,7 @@ public class AppointmentNotifier {
     private final NotificationRepository notificationRepository;
     private final EmailService emailService;
     private final SmsService smsService;
+    private final PushNotificationService pushNotificationService;
 
     /**
      * @param destinataire l'utilisateur (patient ou médecin) à notifier
@@ -46,6 +47,8 @@ public class AppointmentNotifier {
         if (telephone != null && !telephone.isBlank()) {
             smsService.sendSms(telephone, message);
         }
+
+        pushNotificationService.sendPush(destinataire.getFcmToken(), subject, message);
     }
 
     public static String formatDate(LocalDateTime dateHeure) {

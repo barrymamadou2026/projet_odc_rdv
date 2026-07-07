@@ -64,4 +64,10 @@ public class UserController {
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
+
+    @PostMapping("/fcm-token")
+    public ResponseEntity<Void> updateFcmToken(Authentication authentication, @RequestBody java.util.Map<String, String> body) {
+        userService.updateFcmToken(authentication.getName(), body.get("token"));
+        return ResponseEntity.ok().build();
+    }
 }

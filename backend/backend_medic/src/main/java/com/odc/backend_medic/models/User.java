@@ -76,4 +76,8 @@ public class User {
 
     @Column(name = "profile_image_url", length = 255)
     private String profileImageUrl;
+
+    /** Jeton FCM (Firebase Cloud Messaging) du navigateur/appareil courant, pour l'envoi de notifications push. */
+    @Column(name = "fcm_token", length = 255)
+    private String fcmToken;
 }

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '@/lib/api';
+import { initPushNotifications } from '@/lib/firebase';
 
 type Role = 'PATIENT' | 'MEDECIN' | 'ADMIN';
 
@@ -29,6 +30,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (token && storedRole && storedEmail) {
       setUser({ email: storedEmail });
       setRole(storedRole as Role);
+      initPushNotifications();
     }
     setLoading(false);
   }, []);
@@ -41,6 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem('userEmail', res.email);
       setUser({ email: res.email });
       setRole(res.role as Role);
+      initPushNotifications();
       return { role: res.role as Role };
     } catch (err: any) {
       return { error: err.message || 'Identifiants incorrects' };
@@ -58,6 +61,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem('userEmail', res.email);
       setUser({ email: res.email });
       setRole(res.role as Role);
+      initPushNotifications();
       return {};
     } catch (err: any) {
       return { error: err.message || "Erreur lors de l'inscription" };

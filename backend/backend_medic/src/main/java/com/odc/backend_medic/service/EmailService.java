@@ -27,21 +27,21 @@ import java.util.Map;
  * ni une mauvaise config Gmail. La solution standard est de basculer sur une
  * API d'envoi d'email en HTTPS (port 443, jamais bloqué).
  *
- * Cinq fournisseurs supportés, sélectionnables via APP_MAIL_PROVIDER
- * ("brevo", "sendgrid", "mailjet", "zeptomail" ou "ses" — "brevo" par
- * défaut) — pratique quand un fournisseur bloque/rejette le compte (vécu
- * avec Brevo qui n'envoyait jamais l'email de vérification, SendGrid qui a
- * refusé d'activer le compte après vetting anti-fraude, et Mailjet dont le
- * compte a été bloqué après quelques envois). NOTE : Mailgun et Mailjet
- * appartiennent tous les deux à Sinch — inutile d'essayer Mailgun si Mailjet
- * est bloqué. ZeptoMail exige de vérifier un DOMAINE entier via DNS (pas
- * possible sans nom de domaine à soi) — inutilisable ici sans domaine.
- * AWS SES ("ses") est la meilleure option sans domaine : il permet de
- * vérifier une simple adresse email (comme les autres) et ne fait pas de
- * vetting automatique agressif à l'inscription — juste une demande écrite
- * de "production access" à approuver manuellement par AWS.
+ * Six fournisseurs supportés, sélectionnables via APP_MAIL_PROVIDER
+ * ("brevo", "sendgrid", "mailjet", "zeptomail", "ses" ou "smtp2go" —
+ * "brevo" par défaut) — pratique quand un fournisseur bloque/rejette le
+ * compte (vécu avec Brevo qui n'envoyait jamais l'email de vérification,
+ * SendGrid qui a refusé d'activer le compte après vetting anti-fraude, et
+ * Mailjet dont le compte a été bloqué puis a exigé un domaine personnalisé
+ * pour l'authentification SPF/DKIM). NOTE : Mailgun et Mailjet appartiennent
+ * tous les deux à Sinch. ZeptoMail exige aussi un DOMAINE entier vérifié via
+ * DNS — inutilisable sans domaine. AWS SES nécessite une carte bancaire pour
+ * créer un compte — inutilisable ici. SMTP2GO ("smtp2go") est la meilleure
+ * option restante sans domaine ET sans carte bancaire : société indépendante
+ * (australienne, pas Sinch/Twilio), permet de vérifier une simple adresse
+ * email (comme Brevo à l'origine), plan gratuit 1000 emails/mois.
  *
- *   APP_MAIL_PROVIDER        -> "brevo" (défaut), "sendgrid", "mailjet", "zeptomail" ou "ses"
+ *   APP_MAIL_PROVIDER        -> "brevo" (défaut), "sendgrid", "mailjet", "zeptomail", "ses" ou "smtp2go"
  *   APP_BREVO_API_KEY        -> clé API Brevo (si provider=brevo)
  *   APP_SENDGRID_API_KEY     -> clé API SendGrid (si provider=sendgrid)
  *   APP_MAILJET_API_KEY      -> clé API publique Mailjet (si provider=mailjet)
@@ -50,6 +50,7 @@ import java.util.Map;
  *   APP_AWS_ACCESS_KEY_ID    -> clé d'accès IAM (si provider=ses)
  *   APP_AWS_SECRET_ACCESS_KEY-> clé secrète IAM (si provider=ses)
  *   APP_AWS_REGION           -> région SES, ex: eu-west-1 (si provider=ses)
+ *   APP_SMTP2GO_API_KEY      -> clé API SMTP2GO (si provider=smtp2go)
  *   APP_MAIL_FROM            -> adresse expéditeur (doit être vérifiée chez le fournisseur)
  *   APP_MAIL_FROM_NAME       -> nom affiché de l'expéditeur (optionnel)
  *
@@ -65,6 +66,8 @@ public class EmailService {
     private static final String SENDGRID_ENDPOINT = "https://api.sendgrid.com/v3/mail/send";
     private static final String MAILJET_ENDPOINT = "https://api.mailjet.com/v3.1/send";
     private static final String ZEPTOMAIL_ENDPOINT = "https://api.zeptomail.com/v1.1/email";
+    private static final String SMTP2GO_ENDPOINT = "https://api.smtp2go.com/v3/email/send";
+    private static final String ELASTICEMAIL_ENDPOINT = "https://api.elasticemail.com/v4/emails";
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -95,6 +98,12 @@ public class EmailService {
 
     @Value("${app.aws.region:eu-west-1}")
     private String awsRegion;
+
+    @Value("${app.smtp2go.api-key:}")
+    private String smtp2goApiKey;
+
+    @Value("${app.elasticemail.api-key:}")
+    private String elasticEmailApiKey;
 
     @Value("${app.mail.from:no-reply@medconnect-odc.com}")
     private String from;
@@ -150,6 +159,20 @@ public class EmailService {
                         return;
                     }
                     response = sendViaSes(to, subject, htmlBody);
+                }
+                case "smtp2go" -> {
+                    if (smtp2goApiKey == null || smtp2goApiKey.isBlank()) {
+                        log.warn("Email non envoyé (APP_SMTP2GO_API_KEY non configurée) - destinataire: {}, sujet: {}", to, subject);
+                        return;
+                    }
+                    response = sendViaSmtp2go(to, subject, htmlBody, smtp2goApiKey);
+                }
+                case "elasticemail" -> {
+                    if (elasticEmailApiKey == null || elasticEmailApiKey.isBlank()) {
+                        log.warn("Email non envoyé (APP_ELASTICEMAIL_API_KEY non configurée) - destinataire: {}, sujet: {}", to, subject);
+                        return;
+                    }
+                    response = sendViaElasticEmail(to, subject, htmlBody, elasticEmailApiKey);
                 }
                 default -> {
                     if (brevoApiKey == null || brevoApiKey.isBlank()) {
@@ -346,6 +369,62 @@ public class EmailService {
                 .header("host", host)
                 .header("x-amz-date", signed.amzDate())
                 .header("authorization", signed.authorization())
+                .timeout(Duration.ofSeconds(15))
+                .POST(HttpRequest.BodyPublishers.ofString(json))
+                .build();
+
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> sendViaSmtp2go(String to, String subject, String htmlBody, String apiKey) throws Exception {
+        String senderHeader = (fromName == null || fromName.isBlank()) ? from : fromName + " <" + from + ">";
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("api_key", apiKey);
+        payload.put("to", List.of(to));
+        payload.put("sender", senderHeader);
+        payload.put("subject", subject);
+        payload.put("html_body", htmlBody);
+
+        String json = objectMapper.writeValueAsString(payload);
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(SMTP2GO_ENDPOINT))
+                .header("accept", "application/json")
+                .header("content-type", "application/json")
+                .timeout(Duration.ofSeconds(15))
+                .POST(HttpRequest.BodyPublishers.ofString(json))
+                .build();
+
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> sendViaElasticEmail(String to, String subject, String htmlBody, String apiKey) throws Exception {
+        Map<String, Object> bodyPart = new HashMap<>();
+        bodyPart.put("ContentType", "HTML");
+        bodyPart.put("Content", htmlBody);
+
+        String fromHeader = (fromName == null || fromName.isBlank()) ? from : fromName + " <" + from + ">";
+
+        Map<String, Object> contentPart = new HashMap<>();
+        contentPart.put("Body", List.of(bodyPart));
+        contentPart.put("Subject", subject);
+        contentPart.put("From", fromHeader);
+
+        Map<String, Object> recipient = new HashMap<>();
+        recipient.put("Email", to);
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("Recipients", List.of(recipient));
+        payload.put("Content", contentPart);
+
+        String json = objectMapper.writeValueAsString(payload);
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(ELASTICEMAIL_ENDPOINT))
+                .header("accept", "application/json")
+                .header("content-type", "application/json")
+                .header("X-ElasticEmail-ApiKey", apiKey)
                 .timeout(Duration.ofSeconds(15))
                 .POST(HttpRequest.BodyPublishers.ofString(json))
                 .build();

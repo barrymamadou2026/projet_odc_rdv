@@ -141,6 +141,7 @@ export const userApi = {
     formData.append('file', file);
     return request<string>('/users/profile-image', { method: 'POST', body: formData });
   },
+  updateFcmToken: (token: string) => request<void>('/users/fcm-token', { method: 'POST', body: JSON.stringify({ token }) }),
 };
 
 export default { authApi, patientApi, medecinApi, adminApi, notificationApi, userApi, publicApi };

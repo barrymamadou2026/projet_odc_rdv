@@ -42,6 +42,18 @@ public class UserService {
     }
 
     /**
+     * Enregistre/actualise le jeton FCM (Firebase Cloud Messaging) de l'utilisateur
+     * connecté, pour lui permettre de recevoir des notifications push (rendez-vous,
+     * confirmations, rappels) directement dans son navigateur.
+     */
+    @Transactional
+    public void updateFcmToken(String email, String fcmToken) {
+        User user = getAuthenticatedUser(email);
+        user.setFcmToken(fcmToken);
+        userRepository.save(user);
+    }
+
+    /**
      * Construit la réponse de profil complète (jamais l'entité User brute :
      * ça exposerait le hash du mot de passe en JSON) en allant chercher
      * téléphone/adresse/antécédents sur la fiche Patient ou Médecin associée,
