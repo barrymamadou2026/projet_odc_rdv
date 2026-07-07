@@ -30,12 +30,6 @@ const AppLayout: React.FC = () => {
       {/* HERO */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-14 pb-16 grid lg:grid-cols-2 gap-12 items-center">
         <div>
-          <div className="inline-flex items-center gap-2 bg-orange-50 border border-orange-100 rounded-full px-4 py-1.5 mb-5">
-            <div className="w-5 h-5 rounded overflow-hidden">
-              <img src="/odc-logo.png" alt="ODC" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
-            </div>
-            <span className="text-xs font-bold text-orange-600">ODC-Guinée · Projet de Fin de Formation</span>
-          </div>
           <h1 className="text-4xl sm:text-5xl font-extrabold leading-tight text-gray-900">
             La santé simplifiée,<br />
             <span className="text-orange-500">au bout de vos doigts.</span>
