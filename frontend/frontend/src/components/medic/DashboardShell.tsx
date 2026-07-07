@@ -3,6 +3,7 @@ import Sidebar from './Sidebar';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Calendar, FileText, Settings, Search } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import NotificationPermissionBanner from './NotificationPermissionBanner';
 
 interface Props { active: string; children: React.ReactNode; }
 
@@ -34,7 +35,10 @@ const DashboardShell: React.FC<Props> = ({ active, children }) => {
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar active={active} />
-      <main className="flex-1 min-w-0 px-4 sm:px-8 py-6 pb-24 lg:pb-8">{children}</main>
+      <main className="flex-1 min-w-0 px-4 sm:px-8 py-6 pb-24 lg:pb-8">
+        <NotificationPermissionBanner />
+        {children}
+      </main>
 
       {/* Mobile bottom nav */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-30 flex">
