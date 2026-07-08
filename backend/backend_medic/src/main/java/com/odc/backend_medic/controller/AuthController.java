@@ -7,11 +7,9 @@ import com.odc.backend_medic.dto.RegisterRequest;
 import com.odc.backend_medic.dto.ForgotPasswordRequest;
 import com.odc.backend_medic.dto.ResetPasswordRequest;
 import com.odc.backend_medic.service.AuthService;
-import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -81,38 +79,20 @@ public class AuthController {
     }
 
     /**
-     * Lien cliqué depuis l'email de vérification. Renvoie directement une
-     * page HTML (pas besoin de route frontend dédiée).
+     * Le lien de l'email de vérification pointe désormais vers une page dédiée
+     * du frontend (/verify-email?token=...), qui appelle cet endpoint en JSON
+     * et affiche un résultat avec la charte graphique de l'app (logos, couleurs)
+     * au lieu d'une page HTML brute servie directement par le backend.
      */
-    @GetMapping(value = "/verify-email", produces = MediaType.TEXT_HTML_VALUE)
-    public ResponseEntity<String> verifyEmail(@RequestParam("token") String token, HttpServletResponse response) {
+    @GetMapping("/verify-email")
+    public ResponseEntity<Map<String, Object>> verifyEmail(@RequestParam("token") String token) {
         boolean success = authService.verifyEmail(token);
-        String html = success ? successPage() : errorPage();
-        return ResponseEntity.ok(html);
+        return ResponseEntity.ok(Map.of("verified", success));
     }
 
     @PostMapping("/resend-verification")
     public ResponseEntity<String> resendVerification(@Valid @RequestBody ForgotPasswordRequest request) {
         authService.resendVerificationEmail(request.getEmail());
         return ResponseEntity.ok("Si un compte non vérifié existe avec cet email, un nouvel email a été envoyé.");
-    }
-
-    private String successPage() {
-        return """
-                <html><body style="font-family:Arial,sans-serif;text-align:center;margin-top:80px">
-                <h1 style="color:#f97316">✅ Email confirmé !</h1>
-                <p>Votre compte MedConnect ODC est maintenant actif.</p>
-                <p>Vous pouvez fermer cette page et vous connecter.</p>
-                </body></html>
-                """;
-    }
-
-    private String errorPage() {
-        return """
-                <html><body style="font-family:Arial,sans-serif;text-align:center;margin-top:80px">
-                <h1 style="color:#dc2626">❌ Lien invalide ou expiré</h1>
-                <p>Demandez un nouvel email de confirmation depuis la page de connexion.</p>
-                </body></html>
-                """;
     }
 }

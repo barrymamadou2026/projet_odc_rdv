@@ -75,6 +75,7 @@ export const authApi = {
   forgotPassword: (data: ForgotPasswordRequest) => request<string>('/auth/forgot-password', { method: 'POST', body: JSON.stringify(data) }),
   resendVerification: (data: ForgotPasswordRequest) => request<string>('/auth/resend-verification', { method: 'POST', body: JSON.stringify(data) }),
   resetPassword: (data: ResetPasswordRequest) => request<string>('/auth/reset-password', { method: 'POST', body: JSON.stringify(data) }),
+  verifyEmail: (token: string) => request<{ verified: boolean }>(`/auth/verify-email?token=${encodeURIComponent(token)}`, { method: 'GET' }),
   logout: (): void => removeToken(),
   getToken,
   isAuthenticated: (): boolean => getToken() !== null,

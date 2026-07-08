@@ -54,9 +54,6 @@ public class AuthService {
     @Value("${app.frontend-url:http://localhost:5173}")
     private String frontendUrl;
 
-    @Value("${app.base-url:http://localhost:8080}")
-    private String backendUrl;
-
     // ---------------------------------------------------------------------
     // Vérification d'email (double opt-in)
     // ---------------------------------------------------------------------
@@ -73,19 +70,29 @@ public class AuthService {
                 .build();
         emailVerificationTokenRepository.save(verificationToken);
 
-        String verificationLink = backendUrl + "/api/auth/verify-email?token=" + token;
+        String verificationLink = frontendUrl + "/verify-email?token=" + token;
         emailService.sendVerificationEmail(user.getEmail(), user.getPrenom(), verificationLink);
     }
 
     @Transactional
     public boolean verifyEmail(String token) {
+        // Le lien n'est PAS supprimé dès la première visite réussie (idempotent) :
+        // les scanners anti-phishing des messageries (Gmail Safe Browsing, passerelles
+        // email d'entreprise, antivirus...) visitent automatiquement les liens contenus
+        // dans un email pour les analyser, AVANT que l'utilisateur ne clique lui-même.
+        // Si on supprimait le token dès ce premier accès automatique, le vrai clic de
+        // l'utilisateur juste après tombait sur "lien invalide ou expiré" alors que le
+        // lien n'avait jamais vraiment été utilisé par lui. Le token reste donc valable
+        // jusqu'à son expiration naturelle (24h) ou jusqu'à un nouvel envoi (qui le
+        // remplace via resendVerificationEmail/sendVerificationEmail).
         return emailVerificationTokenRepository.findByToken(token)
                 .filter(t -> t.getExpiryDate().isAfter(LocalDateTime.now()))
                 .map(t -> {
                     User user = t.getUser();
-                    user.setEmailVerifie(true);
-                    userRepository.save(user);
-                    emailVerificationTokenRepository.delete(t);
+                    if (!user.isEmailVerifie()) {
+                        user.setEmailVerifie(true);
+                        userRepository.save(user);
+                    }
                     return true;
                 })
                 .orElse(false);

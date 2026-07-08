@@ -11,6 +11,7 @@ import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ResetPassword from "./pages/ResetPassword";
+import VerifyEmail from "./pages/VerifyEmail";
 import AppointmentDetails from "./pages/AppointmentDetails";
 import PatientDashboard from "./pages/PatientDashboard";
 import DoctorDashboard from "./pages/DoctorDashboard";
@@ -40,6 +41,7 @@ const App = () => (
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/verify-email" element={<VerifyEmail />} />
               <Route path="/appointments/:id" element={<RequireRole><AppointmentDetails /></RequireRole>} />
               <Route path="/patient" element={<RequireRole role="PATIENT"><PatientDashboard /></RequireRole>} />
               <Route path="/doctor" element={<RequireRole role="MEDECIN"><DoctorDashboard /></RequireRole>} />

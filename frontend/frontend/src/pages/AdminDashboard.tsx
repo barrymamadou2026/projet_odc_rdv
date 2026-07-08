@@ -5,6 +5,16 @@ import DashboardShell from '@/components/medic/DashboardShell';
 import DashboardTopbar from '@/components/medic/DashboardTopbar';
 import { adminApi } from '@/lib/api';
 import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface UserData { idUtilisateur: number; nom: string; prenom: string; email: string; role: string; estActif: boolean; }
 interface AppointmentData { idRendezVous: number; patientNom: string; medecinNom: string; dateHeure: string; statut: string; }
@@ -27,6 +37,8 @@ const AdminDashboard: React.FC = () => {
   const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<UserData | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = (searchParams.get('tab') as 'users' | 'appointments' | 'consultations' | 'notifications') || 'users';
   const [activeTab, setActiveTabState] = useState<'users' | 'appointments' | 'consultations' | 'notifications'>(initialTab);
@@ -83,17 +95,18 @@ const AdminDashboard: React.FC = () => {
     } catch (e: any) { toast.error(e.message || "Erreur"); }
   };
 
-  const handleDeleteUser = async (u: UserData) => {
-    const confirmed = window.confirm(
-      `Supprimer définitivement le compte de ${u.prenom} ${u.nom} (${u.email}) ?\n\nCette action est irréversible.`
-    );
-    if (!confirmed) return;
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
+    setDeleting(true);
     try {
-      await adminApi.deleteUser(u.idUtilisateur);
+      await adminApi.deleteUser(userToDelete.idUtilisateur);
       toast.success("Compte supprimé avec succès");
-      setUsers(prev => prev.filter(x => x.idUtilisateur !== u.idUtilisateur));
+      setUsers(prev => prev.filter(x => x.idUtilisateur !== userToDelete.idUtilisateur));
+      setUserToDelete(null);
     } catch (e: any) {
       toast.error(e.message || "Erreur lors de la suppression");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -194,7 +207,7 @@ const AdminDashboard: React.FC = () => {
                         {u.estActif ? <ShieldOff className="w-4 h-4" /> : <Shield className="w-4 h-4" />}
                       </button>
                       {u.role !== 'ADMIN' && (
-                        <button onClick={() => handleDeleteUser(u)} title="Supprimer le compte" className="p-2 rounded-lg transition-colors text-gray-400 hover:text-red-600 hover:bg-red-50">
+                        <button onClick={() => setUserToDelete(u)} title="Supprimer le compte" className="p-2 rounded-lg transition-colors text-gray-400 hover:text-red-600 hover:bg-red-50">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       )}
@@ -334,6 +347,35 @@ const AdminDashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Confirmation de suppression de compte */}
+      <AlertDialog open={!!userToDelete} onOpenChange={(open) => { if (!open) setUserToDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce compte ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {userToDelete && (
+                <>
+                  Supprimer définitivement le compte de <strong>{userToDelete.prenom} {userToDelete.nom}</strong> ({userToDelete.email}) ?
+                  <br /><br />
+                  Cette action est irréversible.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); confirmDeleteUser(); }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardShell>
   );
 };
