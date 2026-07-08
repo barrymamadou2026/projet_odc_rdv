@@ -192,10 +192,10 @@ public class AuthService {
 
         sendVerificationEmail(savedUser);
 
-        // Le compte est utilisable immédiatement (bon pour l'UX), mais toute
-        // reconnexion future exigera un email vérifié (voir authenticateUser).
-        String token = buildToken(savedUser);
-        return toAuthResponse(savedUser, token);
+        // Pas de token à l'inscription : le compte doit d'abord être vérifié
+        // par email avant toute connexion (voir authenticateUser). On renvoie
+        // uniquement les infos utiles pour le message de confirmation côté UI.
+        return toAuthResponse(savedUser, null);
     }
 
     // ---------------------------------------------------------------------

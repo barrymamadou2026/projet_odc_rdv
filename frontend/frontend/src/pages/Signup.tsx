@@ -27,8 +27,8 @@ const Signup: React.FC = () => {
     try {
       const res = await signUp(form.email, form.password, `${form.first} ${form.last}`, form.phone, 'PATIENT');
       if (res.error) { setErr(res.error); setLoading(false); return; }
-      toast.success("Compte créé ! Un email de confirmation vous a été envoyé — pensez à vérifier votre adresse pour vos prochaines connexions.");
-      navigate('/patient');
+      toast.success("Compte créé ! Un email de confirmation vous a été envoyé — vérifiez votre adresse pour activer votre compte avant de vous connecter.", { duration: 7000 });
+      navigate('/login');
     } catch {
       setErr("Une erreur inattendue est survenue.");
       setLoading(false);

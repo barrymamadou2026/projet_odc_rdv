@@ -17,7 +17,6 @@ import PatientDashboard from "./pages/PatientDashboard";
 import DoctorDashboard from "./pages/DoctorDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import Settings from "./pages/Settings";
-import Messages from "./pages/Messages";
 import Appointments from "./pages/Appointments";
 import MedicalRecords from "./pages/MedicalRecords";
 import FindDoctors from "./pages/FindDoctors";
@@ -50,7 +49,6 @@ const App = () => (
               <Route path="/records" element={<RequireRole><MedicalRecords /></RequireRole>} />
               <Route path="/find-doctors" element={<RequireRole><FindDoctors /></RequireRole>} />
               <Route path="/settings" element={<RequireRole><Settings /></RequireRole>} />
-              <Route path="/messages" element={<RequireRole><Messages /></RequireRole>} />
               <Route path="/help" element={<Help />} />
               <Route path="/legal" element={<Legal />} />
               <Route path="/privacy" element={<Privacy />} />

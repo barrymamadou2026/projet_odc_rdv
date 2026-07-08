@@ -38,7 +38,6 @@ const PublicHeader: React.FC = () => {
         {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-gray-600">
           <Link to="/" className="hover:text-orange-500 transition-colors">Accueil</Link>
-          <a href="#services" className="hover:text-orange-500 transition-colors">Services</a>
           <Link to="/help" className="hover:text-orange-500 transition-colors">Aide</Link>
         </nav>
 

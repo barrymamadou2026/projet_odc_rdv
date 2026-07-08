@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Calendar, FileText, MessageSquare, Settings, LogOut, User, Search, UserCheck } from 'lucide-react';
+import { LayoutDashboard, Calendar, FileText, Settings, LogOut, User, Search, UserCheck } from 'lucide-react';
 import Logo from './Logo';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -20,14 +20,12 @@ const Sidebar: React.FC<{ active?: string }> = ({ active = 'Dashboard' }) => {
       { label: 'Trouver un Médecin',icon: Search,           to: '/find-doctors' },
       { label: 'Rendez-vous',       icon: Calendar,         to: '/appointments' },
       { label: 'Dossier Médical',   icon: FileText,         to: '/records' },
-      { label: 'Messages',          icon: MessageSquare,    to: '/messages' },
       { label: 'Paramètres',        icon: Settings,         to: '/settings' },
     ];
     if (role === 'MEDECIN') return [
       { label: 'Dashboard',         icon: LayoutDashboard, to: '/doctor' },
       { label: 'Mon Agenda',        icon: Calendar,         to: '/appointments' },
       { label: 'Consultations',     icon: FileText,         to: '/records' },
-      { label: 'Messages',          icon: MessageSquare,    to: '/messages' },
       { label: 'Paramètres',        icon: Settings,         to: '/settings' },
     ];
     // ADMIN

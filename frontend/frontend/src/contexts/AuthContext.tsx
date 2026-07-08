@@ -55,13 +55,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const parts = fullName.trim().split(' ');
       const prenom = parts[0];
       const nom = parts.slice(1).join(' ') || prenom;
-      const res = await authApi.register({ nom, prenom, email, password, telephone });
-      localStorage.setItem('authToken', res.token);
-      localStorage.setItem('userRole', res.role);
-      localStorage.setItem('userEmail', res.email);
-      setUser({ email: res.email });
-      setRole(res.role as Role);
-      initPushNotifications();
+      // Le compte n'est pas connecté automatiquement : un email de vérification
+      // doit être confirmé avant la première connexion (aucun token n'est
+      // renvoyé par le backend à l'inscription).
+      await authApi.register({ nom, prenom, email, password, telephone });
       return {};
     } catch (err: any) {
       return { error: err.message || "Erreur lors de l'inscription" };
