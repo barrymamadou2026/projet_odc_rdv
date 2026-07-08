@@ -6,13 +6,16 @@ import com.odc.backend_medic.dto.NotificationResponse;
 import com.odc.backend_medic.dto.RendezVousResponse;
 import com.odc.backend_medic.dto.UserResponse;
 import com.odc.backend_medic.service.AdminService;
+import com.odc.backend_medic.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -20,6 +23,7 @@ import java.util.List;
 public class AdminController {
 
     private final AdminService adminService;
+    private final UserService userService;
 
     @GetMapping("/users")
     public List<UserResponse> listerUtilisateurs() {
@@ -45,6 +49,14 @@ public class AdminController {
         return adminService.changeUserActivity(idUtilisateur, true)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    /** Suppression définitive d'un compte utilisateur (voir garde-fous dans AdminService.deleteUser). */
+    @DeleteMapping("/users/{id}")
+    public ResponseEntity<Map<String, String>> supprimerUtilisateur(@PathVariable("id") Long idUtilisateur, Authentication authentication) {
+        Long currentAdminId = userService.getAuthenticatedUser(authentication.getName()).getIdUtilisateur();
+        adminService.deleteUser(idUtilisateur, currentAdminId);
+        return ResponseEntity.ok(Map.of("message", "Compte supprimé avec succès."));
     }
 
     @GetMapping("/rendez-vous")

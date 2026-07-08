@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Users, CalendarCheck, AlertTriangle, Plus, Shield, ShieldOff, X, Loader2, LayoutGrid, List, Stethoscope, Bell, FileText } from 'lucide-react';
+import { Users, CalendarCheck, AlertTriangle, Plus, Shield, ShieldOff, X, Loader2, LayoutGrid, List, Stethoscope, Bell, FileText, Trash2 } from 'lucide-react';
 import DashboardShell from '@/components/medic/DashboardShell';
 import DashboardTopbar from '@/components/medic/DashboardTopbar';
 import { adminApi } from '@/lib/api';
@@ -81,6 +81,20 @@ const AdminDashboard: React.FC = () => {
       toast.success(`Utilisateur ${u.estActif ? 'désactivé' : 'activé'}`);
       setUsers(prev => prev.map(x => x.idUtilisateur === u.idUtilisateur ? { ...x, estActif: !u.estActif } : x));
     } catch (e: any) { toast.error(e.message || "Erreur"); }
+  };
+
+  const handleDeleteUser = async (u: UserData) => {
+    const confirmed = window.confirm(
+      `Supprimer définitivement le compte de ${u.prenom} ${u.nom} (${u.email}) ?\n\nCette action est irréversible.`
+    );
+    if (!confirmed) return;
+    try {
+      await adminApi.deleteUser(u.idUtilisateur);
+      toast.success("Compte supprimé avec succès");
+      setUsers(prev => prev.filter(x => x.idUtilisateur !== u.idUtilisateur));
+    } catch (e: any) {
+      toast.error(e.message || "Erreur lors de la suppression");
+    }
   };
 
   const handleCreateMedecin = async (e: React.FormEvent) => {
@@ -179,6 +193,11 @@ const AdminDashboard: React.FC = () => {
                       <button onClick={() => toggleUserStatus(u)} title={u.estActif ? 'Désactiver' : 'Activer'} className={`p-2 rounded-lg transition-colors ${u.estActif ? 'text-gray-400 hover:text-red-500 hover:bg-red-50' : 'text-gray-400 hover:text-green-600 hover:bg-green-50'}`}>
                         {u.estActif ? <ShieldOff className="w-4 h-4" /> : <Shield className="w-4 h-4" />}
                       </button>
+                      {u.role !== 'ADMIN' && (
+                        <button onClick={() => handleDeleteUser(u)} title="Supprimer le compte" className="p-2 rounded-lg transition-colors text-gray-400 hover:text-red-600 hover:bg-red-50">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

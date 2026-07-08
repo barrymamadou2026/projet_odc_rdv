@@ -16,6 +16,8 @@ import com.odc.backend_medic.repository.RendezVousRepository;
 import com.odc.backend_medic.repository.SpecialiteRepository;
 import com.odc.backend_medic.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -26,6 +28,7 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AdminService {
 
     private final UserRepository userRepository;
@@ -36,6 +39,7 @@ public class AdminService {
     private final NotificationRepository notificationRepository;
     private final PasswordEncoder passwordEncoder;
     private final GeocodingService geocodingService;
+    private final AuthService authService;
 
     public List<UserResponse> getAllUsers() {
         return userRepository.findAll().stream()
@@ -59,9 +63,9 @@ public class AdminService {
                 .password(passwordEncoder.encode(request.getPassword()))
                 .role(Role.MEDECIN)
                 .estActif(true)
-                // Compte créé directement par l'admin (vérifié manuellement) :
-                // pas besoin du parcours de double opt-in réservé aux patients.
-                .emailVerifie(true)
+                // Comme pour un patient : le compte doit être confirmé par email
+                // avant la première connexion, même s'il a été créé par un admin.
+                .emailVerifie(false)
                 .build();
 
         User savedUser = userRepository.save(user);
@@ -89,6 +93,9 @@ public class AdminService {
 
         medecinRepository.save(medecin);
 
+        // Envoie le mail de confirmation/activation, exactement comme pour une inscription patient.
+        authService.sendVerificationEmail(savedUser);
+
         return Optional.of(UserResponse.fromEntity(savedUser));
     }
 
@@ -99,6 +106,51 @@ public class AdminService {
                     user.setEstActif(actif);
                     return UserResponse.fromEntity(userRepository.save(user));
                 });
+    }
+
+    /**
+     * Supprime définitivement un compte utilisateur (et, en cascade au niveau
+     * base de données, sa fiche Patient/Médecin, ses disponibilités,
+     * notifications et jetons associés).
+     *
+     * Deux garde-fous :
+     *  - un admin ne peut pas se supprimer lui-même (évite de se retrouver
+     *    sans accès admin par erreur) ;
+     *  - impossible de supprimer le dernier compte administrateur restant.
+     *
+     * Si le compte a un historique de consultations médicales, la contrainte
+     * SQL "ON DELETE RESTRICT" sur consultations.id_rdv bloque volontairement
+     * la suppression physique (on ne fait jamais disparaître un dossier
+     * médical) : on relaie alors un message clair invitant à désactiver le
+     * compte plutôt qu'à le supprimer.
+     */
+    @Transactional
+    public void deleteUser(Long idUtilisateur, Long currentAdminId) {
+        User user = userRepository.findById(idUtilisateur)
+                .orElseThrow(() -> new IllegalArgumentException("Utilisateur introuvable."));
+
+        if (user.getIdUtilisateur().equals(currentAdminId)) {
+            throw new IllegalStateException("Vous ne pouvez pas supprimer votre propre compte administrateur.");
+        }
+
+        if (user.getRole() == Role.ADMIN) {
+            long totalAdmins = userRepository.findAll().stream()
+                    .filter(u -> u.getRole() == Role.ADMIN)
+                    .count();
+            if (totalAdmins <= 1) {
+                throw new IllegalStateException("Impossible de supprimer le dernier compte administrateur.");
+            }
+        }
+
+        try {
+            userRepository.delete(user);
+            userRepository.flush(); // force l'exécution SQL ici pour capturer une éventuelle violation de contrainte
+        } catch (DataIntegrityViolationException e) {
+            log.warn("Suppression refusée pour l'utilisateur {} : historique médical associé.", idUtilisateur);
+            throw new IllegalStateException(
+                    "Impossible de supprimer ce compte : il possède des rendez-vous avec des consultations médicales enregistrées. " +
+                    "Désactivez plutôt le compte pour préserver l'historique médical.");
+        }
     }
 
     public List<RendezVousResponse> getAllRendezVous() {

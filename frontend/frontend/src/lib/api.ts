@@ -114,6 +114,7 @@ export const adminApi = {
   createDoctor: (data: any) => request<any>('/admin/medecins', { method: 'POST', body: JSON.stringify(data) }),
   activateUser: (id: number) => request<any>(`/admin/users/${id}/activer`, { method: 'PATCH' }),
   deactivateUser: (id: number) => request<any>(`/admin/users/${id}/desactiver`, { method: 'PATCH' }),
+  deleteUser: (id: number) => request<{ message: string }>(`/admin/users/${id}`, { method: 'DELETE' }),
   getAllAppointments: () => request<any[]>('/admin/rendez-vous'),
   getSpecialites: () => request<any[]>('/admin/specialites'),
   getAllConsultations: () => request<any[]>('/admin/consultations'),
